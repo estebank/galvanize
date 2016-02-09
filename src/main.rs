@@ -1,104 +1,80 @@
+extern crate docopt;
 extern crate galvanize;
+extern crate rustc_serialize;
 
+use docopt::Docopt;
 use galvanize::Reader;
-use galvanize::Writer;
 use galvanize::vec2str;
 use std::fs::File;
 use std::str::from_utf8;
 
 
+const USAGE: &'static str = "
+Galvanize
+
+Usage:
+  galvanize FILE (top|tail)
+  galvanize FILE (top|tail) COUNT
+  galvanize FILE count
+  galvanize FILE <keys>
+  galvanize FILE <keys> COUNT
+  galvanize FILE all --yes-i-am-sure
+  galvanize (-h | --help)
+  galvanize --version
+
+Options:
+  -h --help  Show this screen.
+  --version  Show version.
+";
+
+#[derive(Debug, RustcDecodable)]
+struct Args {
+    arg_FILE: String,
+    arg_keys: Vec<String>,
+    cmd_top: bool,
+    cmd_tail: bool,
+    arg_COUNT: u32,
+    cmd_count: bool,
+    cmd_all: bool,
+    flag_yes_i_am_sure: bool,
+}
+
 fn main() {
-    let filename = "foo.cdb";
-    let items = [("key".as_bytes(),
-                  "this is a value that is sligthly longer that the others".as_bytes()),
-                 ("another key".as_bytes(), "value field".as_bytes()),
-                 ("hi".as_bytes(), "hello".as_bytes())];
-    {
-        // This is how you write into a CDB.
-        let mut f = File::create(filename).unwrap();
-        let mut cdb_writer = Writer::new(&mut f).ok().unwrap();
-        println!("Opening a CDB writer on file {:?}", filename);
+    let args: Args = Docopt::new(USAGE)
+                         .and_then(|d| d.decode())
+                         .unwrap_or_else(|e| e.exit());
 
-        for item in items.clone().iter() {
-            let _ = cdb_writer.put(item.0, item.1);
+    let filename = args.arg_FILE;
+    let mut f = File::open(filename.clone()).unwrap();
+    let mut cdb_reader = Reader::new(&mut f).ok().unwrap();
+    let count: usize = if args.arg_COUNT == 0 {
+        10
+    } else {
+        args.arg_COUNT as usize
+    };
+    if args.cmd_top {
+        for item in cdb_reader.into_iter().take(count) {
+            println!("{:?}: {:?}", vec2str(&item.0), vec2str(&item.1));
         }
-        for i in 0..128 {
-            println!("Trying to insert ([{:?}], [{:?}]): Result {:?}",
-                     i,
-                     i,
-                     cdb_writer.put(&[i], &[i]));
-        }
-        for i in 0..128 {
-            let v = 128 - i;
-            println!("Trying to insert ([{:?}], [{:?}]): Result {:?}",
-                     i,
-                     v,
-                     cdb_writer.put(&[i], &[v]));
-        }
-        let k = "25".as_bytes();
-        let v = "asdf".as_bytes();
-        println!("Trying to insert ({:?}, {:?}): Result {:?}",
-                 k,
-                 v,
-                 cdb_writer.put(k, v));
-        let v = "a".as_bytes();
-        println!("Trying to insert ({:?}, {:?}): Result {:?}",
-                 k,
-                 v,
-                 cdb_writer.put(k, v));
-        let v = "b".as_bytes();
-        println!("Trying to insert ({:?}, {:?}): Result {:?}",
-                 k,
-                 v,
-                 cdb_writer.put(k, v));
-        println!("Closing writer CDB, writing indexes to disk.\n");
-    }
-
-    {
-        // This is how you read from a CDB.
-        let mut f = File::open(filename).unwrap();
-        let mut cdb_reader = Reader::new(&mut f).ok().unwrap();
-        println!("Opening a CDB reader on file {:?}", filename);
-
-        println!("Fetching items");
-        for item in items.iter() {
-            let k = item.0;
-            // Fetch first value for a given key.
-            match cdb_reader.get_first(k) {
-                Ok(v) => println!("{:?}: {:?}", from_utf8(k).unwrap(), vec2str(&v)),
-                Err(e) => println!("Failed to get {:?}: {:?}", from_utf8(k).unwrap(), e),
-            }
-        }
-
-        let k = "25".as_bytes();
-        println!("Fetching values under key {:?} by position:",
-                 from_utf8(k).unwrap());
-        for i in 0..5 {
-            // Fetch value for a specific position under a given key.
-            match cdb_reader.get_from_pos(k, i) {
-                Ok(v) => println!("    {}: {:?}", i, vec2str(&v)),
-                Err(e) => println!("    {}: Error when fetching: {:?}", i, e),
-            }
-        }
-
-        let k = "25".as_bytes();
-        let vs: Vec<Vec<u8>> = cdb_reader.get(k);  // Fetch all the values under a key.
-
-        println!("Values under {:?}:", from_utf8(k).unwrap());
-        for v in vs {
-            println!("   {:?}", vec2str(&v));
-        }
-
-        println!("{} items in the CDB at {}", cdb_reader.len(), filename);
-
-        for item in cdb_reader.into_iter().take(10) {
-            println!("  {:?} {:?}", item.0, item.1);
-        }
-        println!("  {:?}", cdb_reader.keys());
+    } else if args.cmd_tail {
         let len = cdb_reader.len();
-        for item in cdb_reader.into_iter().skip(len - 10) {
-            println!("  {:?} {:?}", item.0, item.1);
+        for item in cdb_reader.into_iter().skip(len - count) {
+            println!("{:?}: {:?}", vec2str(&item.0), vec2str(&item.1));
         }
-        println!("  {:?}", cdb_reader.keys());
+    } else if args.cmd_count {
+        println!("There're {} items in the CDB at {:?}",
+                 cdb_reader.len(),
+                 filename);
+    } else if args.cmd_all {
+        for item in cdb_reader.into_iter() {
+            println!("{:?}: {:?}", vec2str(&item.0), vec2str(&item.1));
+        }
+    } else if args.arg_keys.len() > 0 {
+        for key in args.arg_keys {
+            println!("Values under key {:?}", key);
+            for val in cdb_reader.get(&key.into_bytes()) {
+                println!("    {:?}", vec2str(&val));
+            }
+        }
     }
 }
