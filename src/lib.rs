@@ -1,367 +1,314 @@
-use std::fs::File;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::Write;
 use std::num::Wrapping;
+use std::result;
+use std::io::Error as IOError;
 
 
 /// DJB hash function
-pub fn hash(string: &str) -> u32 {
-  let mut h: Wrapping<u32> = Wrapping(5381);
-  for c in string.as_bytes().iter() {
-    let x: Wrapping<u32> = Wrapping(c.to_owned() as u32);
-    h = (((h << 5) + h) ^ x) & Wrapping(0xffffffff);
-  }
-  h.0
+pub fn hash(string: &[u8]) -> u32 {
+    let mut h: Wrapping<u32> = Wrapping(5381);
+    for c in string.iter() {
+        let x: Wrapping<u32> = Wrapping(c.to_owned() as u32);
+        h = (((h << 5) + h) ^ x) & Wrapping(0xffffffff);
+    }
+    h.0
 }
-
 
 #[inline]
 pub fn pack(v: u32) -> [u8; 4] {
-  [
-    v as u8,
-    (v >> 8) as u8,
-    (v >> 16) as u8,
-    (v >> 24) as u8,
-  ]
+    [v as u8, (v >> 8) as u8, (v >> 16) as u8, (v >> 24) as u8]
 }
-
 
 #[inline]
 pub fn unpack(v: [u8; 4]) -> u32 {
-  (
-    (v[0] as u32) |
-    ((v[1] as u32) << 8) |
-    ((v[2] as u32) << 16) |
-    ((v[3] as u32) << 24)
-  )
+    ((v[0] as u32) | ((v[1] as u32) << 8) | ((v[2] as u32) << 16) | ((v[3] as u32) << 24))
 }
 
+#[derive(Debug)]
+pub enum Error {
+    CDBTooSmall,
+    KeyNotInCDB,
+    IOError(IOError),
+}
+
+pub type Result<T> = result::Result<T, Error>;
 
 /// CDB Reader struct
-pub struct Reader<'a> {
-  // Opened file to read values from.
-  data: &'a mut File,
-  // Index for the contents of the CDB.
-  index: Vec<(u32, u32)>,
-  // Position in the file where the index table starts.
-  table_start: usize,
-  // How many elements are there in the CDB.
-  length: usize,
+#[derive(Debug)]
+pub struct Reader<'a, F: Read + Seek + 'a> {
+    // Opened file to read values from.
+    file: &'a mut F,
+    // Index for the contents of the CDB.
+    index: Vec<(u32, u32)>,
+    // Position in the file where the index table starts.
+    table_start: usize,
+    // How many elements are there in the CDB.
+    length: usize,
 }
 
 /// CDB Writer struct
-pub struct Writer<'a> {
-  // Opened file to write values into.
-  file: &'a mut File,
-  // Working index for the contents of the CDB.
-  index: Vec<Vec<(u32, u32)>>,
+pub struct Writer<'a, F: Write + Read + Seek + 'a> {
+    // Opened file to write values into.
+    file: &'a mut F,
+    // Working index for the contents of the CDB.
+    index: Vec<Vec<(u32, u32)>>,
 }
 
+/// Iterator struct for Key, Values in a CDB.
+pub struct ItemIterator<'a, 'file: 'a, F: Read + Seek + 'file> {
+    reader: &'a mut Reader<'file, F>,
+}
 
-impl<'a> Reader<'a> {
-  pub fn new(file: &'a mut File) -> Reader<'a> {
-    if file.seek(SeekFrom::End(0)).unwrap() < 2048 {
-      panic!("CDB too small");
-    }
+/// Iterate over (Key, Values) in a CDB until the end of file.
+impl<'a, 'file: 'a, F: Read + Seek + 'file> Iterator for ItemIterator<'a, 'file, F> {
+    type Item = (Vec<u8>, Vec<u8>);
 
-    let mut index: Vec<(u32, u32)> = vec![];
-    let mut table_start: u32 = 0;
-    let mut sum: u32 = 0;
-    {
-      file.seek(SeekFrom::Start(0));
-      let mut chunk = file.take(2048);
-      let mut buf: Vec<u8> = vec![];
-      chunk.read_to_end(&mut buf);
-
-      for ix in 0..2048/8 {
-        let i = ix * 8;
-        let k = unpack([buf[i], buf[i+1], buf[i+2], buf[i+3]]);
-        let v = unpack([buf[i+4], buf[i+5], buf[i+6], buf[i+7]]);
-        sum = sum + (v >> 1);
-        index.push((k, v));
-      }
-      table_start = index.iter().map(|item| item.0 ).min().unwrap();
-    }
-
-    Reader {
-      data: file,
-      index: index,
-      table_start: table_start as usize,
-      length: sum as usize,
-    }
-  }
-
-  pub fn len(&self) -> usize {
-    self.length
-  }
-
-  pub fn get_all(&mut self, key: &str, values: &mut Vec<Vec<u8>>) {
-    let mut i = 0;
-    loop {
-      let mut value: Vec<u8> = vec![];
-      match self.get_from_pos(key, &mut value, i) {
-        Ok(v) => values.push(value),
-        Err(e) => break,
-      }
-      i+=1;
-    }
-  }
-
-  /// Pull the `value` bytes for the first occurence of the given `key` in this CDB.
-  pub fn get_first(&mut self, key: &str, value: &mut Vec<u8>) -> Result<usize, &str> {
-    self.get_from_pos(key, value, 0)
-  }
-
-  /// Pull the `value` bytes for the `index`st occurence of the given `key` in this CDB.
-  pub fn get_from_pos(&mut self, key: &str, value: &mut Vec<u8>, index: u32) -> Result<usize, &str> {
-    // Make sure the buffer is empty before writing.
-    value.clear(); 
-    let mut ret: Result<usize, &str> = Err::<usize, &str>("key not in CDB");
-
-    // Truncate to 32 bits and remove sign.
-    let h = hash(key) & 0xffffffff;
-    let (start, nslots) = self.index[(h & 0xff) as usize];
-
-    if nslots > index {  // Bucket has keys.
-      let end = start + (nslots << 3);
-      let slot_off = start + (((h >> 8) % nslots) << 3);
-
-      let mut iterator = (slot_off..end).chain(start..slot_off);
-      let mut counter = 0;
-      loop {
-        value.clear();
-        let pos_option = iterator.next();
-        if pos_option == None {
-          ret = Err::<usize, &str>("key not in CDB");
-          break;
-        }
-        let pos = pos_option.unwrap();
-
-        let mut buf: [u8; 4] = [0; 4];
-        {
-          self.data.seek(SeekFrom::Start((pos) as u64));
-          let mut chunk = self.data.take(4);
-          chunk.read(&mut buf);
-        }
-        let rec_h = unpack(buf);
-
-        {
-          let mut chunk = self.data.take(4);
-          chunk.read(&mut buf);
-        }
-        let mut rec_pos = unpack(buf);
-        if rec_h == 0 {  // Key not in file.
-          ret = Err::<usize, &str>("key not in CDB");
-          break;
-        } else if rec_h == h {  // Hash of key found in file.
-          let mut buf: [u8; 4] = [0; 4];
-
-          {
-            self.data.seek(SeekFrom::Start((rec_pos) as u64));
-            let mut chunk = self.data.take(4);
-            chunk.read(&mut buf);
-          }
-          let klen = unpack(buf);  // Key length
-
-          {
-            let mut chunk = self.data.take(4);
-            chunk.read(&mut buf);
-          }
-          let dlen = unpack(buf);  // Value length
-
-          rec_pos = rec_pos + 8;  // Start of the key.
-
-          let mut buf: Vec<u8> = vec![];
-          {
-            self.data.seek(SeekFrom::Start((rec_pos) as u64));
-            let mut chunk = self.data.take(klen as u64);
-            chunk.read_to_end(&mut buf);
-          }
-          {
-            let k = std::str::from_utf8(&buf[..]).unwrap();
-            if k == key {  // Found key in file
-              rec_pos = rec_pos + klen;
-
-              self.data.seek(SeekFrom::Start((rec_pos) as u64));
-              let mut chunk = self.data.take(dlen as u64);
-              chunk.read_to_end(value);
-
-              if counter == index {
-                ret = Ok(dlen as usize);
-                break;
-              }
-              counter = counter + 1;
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.reader.file.seek(SeekFrom::Current(0)) {
+            Ok(pos) => {
+                if pos >= self.reader.table_start as u64 {
+                    return None;
+                }
             }
-          }
+            Err(_) => return None,
+        }
+        // We're in the Footer of the file, no more items.
+        let mut buf: [u8; 8] = [0; 8];
+        {
+            let mut chunk = self.reader.file.take(8);
+            let _ = chunk.read(&mut buf);
+        }
+        let k = unpack([buf[0], buf[1], buf[2], buf[3]]);  // Key length
+        let v = unpack([buf[4], buf[5], buf[6], buf[7]]);  // Value length
+
+        let mut key: Vec<u8> = vec![];
+        {
+            let mut chunk = self.reader.file.take(k as u64);
+            let _ = chunk.read_to_end(&mut key);
         }
 
-        for _ in 0..7 {  // Jump to end of 8 bytes.
-          iterator.next();
+        let mut val: Vec<u8> = vec![];
+        {
+            let mut chunk = self.reader.file.take(v as u64);
+            let _ = chunk.read_to_end(&mut val);
         }
-      }
+
+        Some((key, val))
     }
-    ret
-  }
+}
+
+impl<'a, 'file: 'a, F: Read + Seek + 'file> IntoIterator for &'a mut Reader<'file, F> {
+    type Item = (Vec<u8>, Vec<u8>);
+    type IntoIter = ItemIterator<'a, 'file, F>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        let _ = self.file.seek(SeekFrom::Start(2048));
+        ItemIterator { reader: self }
+    }
+}
+
+impl<'a, F: Read + Seek + 'a> Reader<'a, F> {
+    pub fn new(file: &'a mut F) -> Result<Reader<'a, F>> {
+        match file.seek(SeekFrom::End(0)) {
+            Err(e) => return Err(Error::IOError(e)),
+            Ok(n) => {
+                if n < 2048 {
+                    return Err(Error::CDBTooSmall);
+                }
+            }
+        };
+
+        let mut index: Vec<(u32, u32)> = vec![];
+        let mut sum: u32 = 0;
+
+        let mut buf: Vec<u8> = vec![];
+        {
+            try!(file.seek(SeekFrom::Start(0)).map_err(|e| Error::IOError(e)));
+            let mut chunk = file.take(2048);
+            try!(chunk.read_to_end(&mut buf).map_err(|e| Error::IOError(e)));
+        }
+
+        for ix in 0..2048 / 8 {
+            let i = ix * 8;
+            let k = unpack([buf[i], buf[i + 1], buf[i + 2], buf[i + 3]]);
+            let v = unpack([buf[i + 4], buf[i + 5], buf[i + 6], buf[i + 7]]);
+            sum = sum + (v >> 1);
+            index.push((k, v));
+        }
+        let table_start = index.iter().map(|item| item.0).min().unwrap();
+
+        Ok(Reader {
+            file: file,
+            index: index,
+            table_start: table_start as usize,
+            length: sum as usize,
+        })
+    }
+
+    pub fn len(&self) -> usize {
+        self.length
+    }
+
+    pub fn get(&mut self, key: &[u8]) -> Vec<Vec<u8>> {
+        let mut i = 0;
+        let mut values: Vec<Vec<u8>> = vec![];
+        loop {
+            match self.get_from_pos(key, i) {
+                Ok(v) => values.push(v),
+                Err(_) => break,
+            }
+            i += 1;
+        }
+        values
+    }
+
+    pub fn keys(&mut self) -> Vec<Vec<u8>> {
+        let mut keys: Vec<Vec<u8>> = vec![];
+        for item in self.into_iter() {
+            keys.push(item.0);
+        }
+        keys
+    }
+
+    /// Pull the `value` bytes for the first occurence of the given `key` in this CDB.
+    pub fn get_first(&mut self, key: &[u8]) -> Result<Vec<u8>> {
+        self.get_from_pos(key, 0)
+    }
+
+    /// Pull the `value` bytes for the `index`st occurence of the given `key` in this CDB.
+    pub fn get_from_pos(&mut self, key: &[u8], index: u32) -> Result<Vec<u8>> {
+        // Truncate to 32 bits and remove sign.
+        let h = hash(key) & 0xffffffff;
+        let (start, nslots) = self.index[(h & 0xff) as usize];
+
+        if nslots > index {
+            // Bucket has keys.
+            let end = start + (nslots << 3);
+            let slot_off = start + (((h >> 8) % nslots) << 3);
+
+            let mut counter = 0;
+            // Every 8 bytes from the slot offset to the end, and then from the
+            // end to the slot_offset.
+            for pos in (slot_off..end)
+                           .chain(start..slot_off)
+                           .enumerate()
+                           .filter(|item| item.0 % 8 == 0)
+                           .map(|item| item.1) {
+                let mut buf: [u8; 8] = [0; 8];
+                {
+                    try!(self.file
+                             .seek(SeekFrom::Start(pos as u64))
+                             .map_err(|e| Error::IOError(e)));
+                    let mut chunk = self.file.take(8);
+                    try!(chunk.read(&mut buf).map_err(|e| Error::IOError(e)));
+                }
+                let rec_h = unpack([buf[0], buf[1], buf[2], buf[3]]);
+                let rec_pos = unpack([buf[4], buf[5], buf[6], buf[7]]);
+
+                if rec_h == 0 {
+                    // Key not in file.
+                    return Err(Error::KeyNotInCDB);
+                } else if rec_h == h {
+                    // Hash of key found in file.
+                    {
+                        try!(self.file
+                                 .seek(SeekFrom::Start(rec_pos as u64))
+                                 .map_err(|e| Error::IOError(e)));
+                        let mut chunk = self.file.take(8);
+                        try!(chunk.read(&mut buf).map_err(|e| Error::IOError(e)));
+                    }
+                    let klen = unpack([buf[0], buf[1], buf[2], buf[3]]);
+                    let dlen = unpack([buf[4], buf[5], buf[6], buf[7]]);
+
+                    let mut buf: Vec<u8> = vec![];
+                    {
+                        let mut chunk = self.file.take(klen as u64);
+                        try!(chunk.read_to_end(&mut buf).map_err(|e| Error::IOError(e)));
+                    }
+                    {
+                        if buf == key {
+                            // Found key in file
+                            buf.clear();
+
+                            let mut chunk = self.file.take(dlen as u64);
+                            try!(chunk.read_to_end(&mut buf).map_err(|e| Error::IOError(e)));
+
+                            if counter == index {
+                                return Ok(buf);
+                            }
+                            counter = counter + 1;
+                        }
+                    }
+                }
+            }
+        }
+        Err(Error::KeyNotInCDB)
+    }
 }
 
 
-impl<'a> Writer<'a> {
+impl<'a, F: Write + Read + Seek + 'a> Writer<'a, F> {
+    pub fn new(file: &'a mut F) -> Result<Writer<'a, F>> {
+        try!(file.seek(SeekFrom::Start(0)).map_err(|e| Error::IOError(e)));
+        try!(file.write(&[0; 2048]).map_err(|e| Error::IOError(e)));
 
-  pub fn new(file: &'a mut File) -> Writer {
-    file.seek(SeekFrom::Start(0));
-    file.write(&[0; 2048]);
-
-    Writer {
-      file: file,
-      index: vec!(Vec::new(); 256),
-    }
-  }
-
-  /// Write `value` for `key` into this CDB.
-  pub fn put(&mut self, key: &str, value: &str) {
-    let pos = self.file.seek(SeekFrom::Current(0)).unwrap() as u32;
-
-    self.file.write(&pack(key.len() as u32));
-    self.file.write(&pack(value.len() as u32));
-
-    self.file.write(key.as_bytes());
-    self.file.write(value.as_bytes());
-
-    let h = hash(key) & 0xffffffff;
-    self.index[(h & 0xff) as usize].push((h, pos))
-  }
-
-
-  /// Write out the index for this CDB.
-  pub fn finalize(&mut self) {
-    let mut index: Vec<(u32, u32)> = Vec::new();
-
-    for tbl in &self.index {
-      let length = (tbl.len() << 1) as u32;
-      let mut ordered: Vec<(u32, u32)> = vec!((0, 0); length as usize);
-      for &pair in tbl {
-        let where_ = (pair.0 >> 8) % length;
-        for i in (where_..length).chain(0..where_) {
-          if ordered[i as usize].0 == 0 {
-            ordered[i as usize] = pair;
-            //println!("{:?}", pair);
-            break;
-          }
-        }
-      }
-      index.push((self.file.seek(SeekFrom::Current(0)).unwrap() as u32,
-                  length
-                  ));
-      for pair in ordered {
-        &self.file.write(&pack(pair.0));
-        &self.file.write(&pack(pair.1));
-      }
+        Ok(Writer {
+            file: file,
+            index: vec!(Vec::new(); 256),
+        })
     }
 
-    &self.file.seek(SeekFrom::Start(0));
-    for pair in index {
-        &self.file.write(&pack(pair.0));
-        &self.file.write(&pack(pair.1));
-    }
+    /// Write `value` for `key` into this CDB.
+    pub fn put(&mut self, key: &[u8], value: &[u8]) -> Result<()> {
+        let pos = try!(self.file.seek(SeekFrom::Current(0)).map_err(|e| Error::IOError(e))) as u32;
+        try!(self.file.write(&pack(key.len() as u32)).map_err(|e| Error::IOError(e)));
+        try!(self.file.write(&pack(value.len() as u32)).map_err(|e| Error::IOError(e)));
 
-//        self.fp = None # prevent double finalize()
-  }
+        try!(self.file.write(key).map_err(|e| Error::IOError(e)));
+        try!(self.file.write(value).map_err(|e| Error::IOError(e)));
+
+        let h = hash(key) & 0xffffffff;
+        self.index[(h & 0xff) as usize].push((h, pos));
+        Ok(())
+    }
 }
 
+impl<'a, F: Write + Read + Seek + 'a> Drop for Writer<'a, F> {
+    /// Write out the index for this CDB.
+    fn drop(&mut self) {
+        let mut index: Vec<(u32, u32)> = Vec::new();
+
+        for tbl in &self.index {
+            let length = (tbl.len() << 1) as u32;
+            let mut ordered: Vec<(u32, u32)> = vec!((0, 0); length as usize);
+            for &pair in tbl {
+                let where_ = (pair.0 >> 8) % length;
+                for i in (where_..length).chain(0..where_) {
+                    if ordered[i as usize].0 == 0 {
+                        ordered[i as usize] = pair;
+                        // println!("{:?}", pair);
+                        break;
+                    }
+                }
+            }
+            index.push((self.file.seek(SeekFrom::Current(0)).unwrap() as u32, length));
+            for pair in ordered {
+                &self.file.write(&pack(pair.0));
+                &self.file.write(&pack(pair.1));
+            }
+        }
+
+        &self.file.seek(SeekFrom::Start(0));
+        for pair in index {
+            &self.file.write(&pack(pair.0));
+            &self.file.write(&pack(pair.1));
+        }
+    }
+}
 
 pub fn vec2str<'a>(v: &'a Vec<u8>) -> &'a str {
-  std::str::from_utf8(&v[..]).unwrap()
-}
-
-
-#[cfg(test)]
-mod tests {
-  use super::*;
-  use std::fs::File;
-
-  #[test]
-  fn known_good_djb_hash() {
-    assert_eq!(hash(&"dave"), 2087378131);
-  }
-
-  #[test]
-  fn djb_correct_wrapping() {
-    assert_eq!(hash(&"davedavedavedavedave"), 3529598163);
-  }
-
-  #[test]
-  fn full_roundtrip() {
-    let filename = "foo.cdb";
-    let kv = [
-      ("key", "this is a value that is sligthly longer that the others"),
-      ("another key", "value field"),
-      ("hi", "asdf"),
-    ];
-    let repeat_k = "25";
-    let repeat_values = ["a", "b", "c", "d"];
-
-    { // This is how you write into a CDB.
-      let mut f = File::create(filename).unwrap();
-      let mut x = Writer::new(&mut f);
-
-      for item in kv.iter() {
-        x.put(item.0, item.1);
-      }
-
-      let k = &repeat_k;
-      for v in repeat_values.iter() {
-        x.put(k, &v);
-      }
-
-      x.finalize();
-    }
-
-    { // This is how you read from a CDB.
-      let mut r = File::open(filename).unwrap();
-      let mut y = Reader::new(&mut r);
-
-      for item in kv.iter() {
-        let mut v: Vec<u8> = vec![];
-        let k = item.0;
-        // Fetch first value for a given key.
-        match y.get_first(&k, &mut v) {
-          Ok(s) => assert_eq!(vec2str(&v).len(), s),
-          Err(e) => assert!(true)
-        }
-        assert_eq!(item.1, vec2str(&v));
-      }
-
-      for i in 0..repeat_values.len() {
-        let mut v: Vec<u8> = vec![];
-        let k = repeat_k;
-        // Fetch value for a specific position under a given key.
-        match y.get_from_pos(&k, &mut v, i as u32) {
-          Ok(s) => assert_eq!(repeat_values[i], vec2str(&v)),
-          Err(e) => assert!(true)
-        }
-      }
-
-      let mut vs: Vec<Vec<u8>> = vec![];
-      y.get_all(&"25", &mut vs);  // Fetch all the values under a key.
-
-      assert_eq!(repeat_values.len(), vs.len());
-      for i in 0..vs.len() {
-        let v = &vs[i];
-        assert_eq!(repeat_values[i], vec2str(&v));
-      }
-
-      assert_eq!(7, y.len());
-
-      { // Fetch non existing key.
-        let mut v: Vec<u8> = vec![];
-        let k = "non existing key";
-        match y.get_first(&k, &mut v) {
-          Ok(s) => assert!(true),
-          Err(e) => assert_eq!("key not in CDB", e),
-        }
-      }
-    }
-  }
+    std::str::from_utf8(&v[..]).unwrap()
 }
