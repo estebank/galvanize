@@ -1,9 +1,20 @@
 extern crate galvanize;
 
-use std::fs::File;
-use galvanize::Writer;
 use galvanize::Reader;
+use galvanize::Writer;
+use galvanize::hash;
+use std::fs::File;
 
+
+#[test]
+fn known_good_djb_hash() {
+  assert_eq!(hash(&"dave".as_bytes()), 2087378131);
+}
+
+#[test]
+fn djb_correct_wrapping() {
+  assert_eq!(hash(&"davedavedavedavedave".as_bytes()), 3529598163);
+}
 
 #[test]
 fn create_file() {
