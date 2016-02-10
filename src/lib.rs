@@ -1,10 +1,10 @@
+use std::io::Error as IOError;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::Write;
 use std::num::Wrapping;
 use std::result;
-use std::io::Error as IOError;
 
 
 /// DJB hash function
@@ -309,6 +309,6 @@ impl<'a, F: Write + Read + Seek + 'a> Drop for Writer<'a, F> {
     }
 }
 
-pub fn vec2str<'a>(v: &'a Vec<u8>) -> &'a str {
-    std::str::from_utf8(&v[..]).unwrap()
+pub fn vec2str<'a>(v: &'a Vec<u8>) -> String {
+    std::string::String::from_utf8_lossy(&v[..]).into_owned()
 }
