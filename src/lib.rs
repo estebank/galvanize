@@ -274,13 +274,11 @@ impl<'a, F: Write + Read + Seek + 'a> Writer<'a, F> {
         self.index[(h & 0xff) as usize].push((h, pos));
         Ok(())
     }
-}
 
-impl<'a, F: Write + Read + Seek + 'a> Drop for Writer<'a, F> {
-    /// Write out the index for this CDB.
-    fn drop(&mut self) {
+    fn finalize(&mut self) {
         let mut index: Vec<(u32, u32)> = Vec::new();
 
+        &self.file.seek(SeekFrom::End(0));
         for tbl in &self.index {
             let length = (tbl.len() << 1) as u32;
             let mut ordered: Vec<(u32, u32)> = vec!((0, 0); length as usize);
@@ -289,7 +287,6 @@ impl<'a, F: Write + Read + Seek + 'a> Drop for Writer<'a, F> {
                 for i in (where_..length).chain(0..where_) {
                     if ordered[i as usize].0 == 0 {
                         ordered[i as usize] = pair;
-                        // println!("{:?}", pair);
                         break;
                     }
                 }
@@ -306,6 +303,21 @@ impl<'a, F: Write + Read + Seek + 'a> Drop for Writer<'a, F> {
             &self.file.write(&pack(pair.0));
             &self.file.write(&pack(pair.1));
         }
+    }
+
+    pub fn as_reader(mut self) -> Result<Reader<'a, F>> {
+        {
+            let s = &mut self;
+            s.finalize();
+        }
+        Reader::new(self.file)
+    }
+}
+
+impl<'a, F: Write + Read + Seek + 'a> Drop for Writer<'a, F> {
+    /// Write out the index for this CDB.
+    fn drop(&mut self) {
+        self.finalize();
     }
 }
 

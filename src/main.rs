@@ -16,18 +16,23 @@ galvanize
 
 Usage:
   galvanize FILE (top|tail)
-  galvanize FILE (top|tail) COUNT
+  galvanize FILE \
+                             (top|tail) COUNT
   galvanize FILE count
   galvanize FILE get <key>
-  galvanize FILE get -e <key>
+  \
+                             galvanize FILE get -e <key>
   galvanize FILE all --yes-i-am-sure
-  galvanize (-h | --help)
+  \
+                             galvanize (-h | --help)
   galvanize --version
 
 Options:
-  -h --help      Show this screen.
+  -h --help      \
+                             Show this screen.
   --version      Show version.
-  -e, --encoded  Treat the key as encoded.
+  -e, --encoded  \
+                             Treat the key as encoded.
 ";
 
 #[derive(Debug, RustcDecodable)]
@@ -81,24 +86,29 @@ fn main() {
         args.arg_COUNT as usize
     };
 
-    if args.cmd_all {  // Show all (key, value) pairs.
+    if args.cmd_all {
+        // Show all (key, value) pairs.
         for item in cdb_reader.into_iter() {
             display_items(item);
         }
-    } else if args.cmd_top {  // Show COUNT first (key, value) pairs.
+    } else if args.cmd_top {
+        // Show COUNT first (key, value) pairs.
         for item in cdb_reader.into_iter().take(count) {
             display_items(item);
         }
-    } else if args.cmd_tail {  // Show COUNT last (key, value) pairs.
+    } else if args.cmd_tail {
+        // Show COUNT last (key, value) pairs.
         let len = cdb_reader.len();
         for item in cdb_reader.into_iter().skip(len - count) {
             display_items(item);
         }
-    } else if args.cmd_count {  // How many (key, value) are there in this file?
+    } else if args.cmd_count {
+        // How many (key, value) are there in this file?
         println!("There are {} items in the CDB at {:?}",
                  cdb_reader.len(),
                  filename);
-    } else if args.cmd_get {  // Get all values under a single key.
+    } else if args.cmd_get {
+        // Get all values under a single key.
         let key = args.arg_key;
         let values = cdb_reader.get(&key.clone().into_bytes());
         if values.len() == 0 {

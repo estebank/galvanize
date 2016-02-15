@@ -4,6 +4,11 @@ use galvanize::Reader;
 use galvanize::Writer;
 use galvanize::hash;
 use std::fs::File;
+use std::fs::OpenOptions;
+use std::path::Path;
+use std::io::Read;
+use std::io::Seek;
+use std::io::Write;
 
 
 #[test]
@@ -16,22 +21,27 @@ fn djb_correct_wrapping() {
   assert_eq!(hash(&"davedavedavedavedave".as_bytes()), 3529598163);
 }
 
+fn make_writer<'a, F: Write + Read + Seek>(file: &'a mut F, items: &[(&[u8], &[u8])]) -> Writer<'a, F> {
+    // This is how you write into a CDB.
+    let mut cdb_writer = Writer::new(file).ok().unwrap();
+
+    for item in items.iter() {
+        // Inserting returns a success or error.
+        let _ = cdb_writer.put(item.0, item.1);
+    }
+    cdb_writer
+}
+
 #[test]
 fn create_file() {
-    let filename = "foo.cdb";
+    let filename = "new_file.cdb";
     let items = [("key".as_bytes(),
                   "this is a value that is sligthly longer that the others".as_bytes()),
                  ("another key".as_bytes(), "value field".as_bytes()),
                  ("hi".as_bytes(), "asdf".as_bytes())];
     {
-        // This is how you write into a CDB.
         let mut f = File::create(filename).unwrap();
-        let mut cdb_writer = Writer::new(&mut f).ok().unwrap();
-
-        for item in items.iter() {
-            // Inserting returns a success or error.
-            let _ = cdb_writer.put(item.0, item.1);
-        }
+        let mut cdb_writer = make_writer(&mut f, &items);
         for i in 0..128 {
             let _ = cdb_writer.put(&[i], &[i]);
         }
@@ -54,7 +64,7 @@ fn create_file() {
             let (k, v) = *item;
             match cdb_reader.get_first(k) {
                 Ok(val) => assert_eq!(&v[..], &val[..]),
-                Err(e) => {println!("{:?} {:?} {:?}", k, v, e); panic!();},
+                Err(e) => panic!("{:?} {:?} {:?}", k, v, e),
             }
         }
 
@@ -62,17 +72,11 @@ fn create_file() {
             // Fetch value for a specific position under a given key.
             match cdb_reader.get_from_pos(&[i], 0) {
                 Ok(v) => assert_eq!(&[i], &v[..]),
-                Err(e) => {
-                    println!("Error reading first value from key {:?}: {:?}", i, e);
-                    panic!();
-                },
+                Err(e) => panic!("Error reading first value from key {:?}: {:?}", i, e),
             }
             match cdb_reader.get_from_pos(&[i], 1) {
                 Ok(v) => assert_eq!(&[128 -i], &v[..]),
-                Err(e) => {
-                    println!("Error reading second value from key {:?}: {:?}", i, e);
-                    panic!();
-                },
+                Err(e) => panic!("Error reading second value from key {:?}: {:?}", i, e),
             }
         }
 
@@ -153,4 +157,31 @@ fn keys() {
     // Do it again to make sure the iterator doesn't consume and lifetimes work
     // as expected.
     assert_eq!(len, cdb_reader.keys().len());
+}
+
+#[test]
+fn turn_writer_into_reader() {
+    let filename = "writer_into_reader.cdb";
+    let items = [("key".as_bytes(),
+                  "this is a value that is sligthly longer that the others".as_bytes()),
+                 ("another key".as_bytes(), "value field".as_bytes()),
+                 ("hi".as_bytes(), "asdf".as_bytes())];
+    let path = Path::new(filename);
+    {
+        let _ = File::create(path);
+    }
+    let mut options = OpenOptions::new();
+    options.write(true).read(true);
+
+    let mut f = options.open(path).unwrap();
+    let cdb_writer = make_writer(&mut f, &items);
+    let mut cdb_reader = cdb_writer.as_reader().unwrap();
+    for item in items.iter() {
+        // Fetch first value for a given key.
+        let (k, v) = *item;
+        match cdb_reader.get_first(k) {
+            Ok(val) => assert_eq!(&v[..], &val[..]),
+            Err(e) => panic!("{:?} {:?} {:?}", k, v, e),
+        }
+    }
 }
