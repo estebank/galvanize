@@ -2,13 +2,13 @@ extern crate galvanize;
 
 use galvanize::Reader;
 use galvanize::Writer;
-use galvanize::hash;
+use galvanize::helpers::hash;
 use std::fs::File;
 use std::fs::OpenOptions;
-use std::path::Path;
 use std::io::Read;
 use std::io::Seek;
 use std::io::Write;
+use std::path::Path;
 
 
 #[test]

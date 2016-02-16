@@ -4,7 +4,7 @@ extern crate rustc_serialize;
 
 use docopt::Docopt;
 use galvanize::Reader;
-use galvanize::vec2str;
+use galvanize::helpers::vec2str;
 use std::fs::File;
 use std::process;
 
@@ -16,23 +16,18 @@ galvanize
 
 Usage:
   galvanize FILE (top|tail)
-  galvanize FILE \
-                             (top|tail) COUNT
+  galvanize FILE (top|tail) COUNT
   galvanize FILE count
   galvanize FILE get <key>
-  \
-                             galvanize FILE get -e <key>
+  galvanize FILE get -e <key>
   galvanize FILE all --yes-i-am-sure
-  \
-                             galvanize (-h | --help)
+  galvanize (-h | --help)
   galvanize --version
 
 Options:
-  -h --help      \
-                             Show this screen.
+  -h --help      Show this screen.
   --version      Show version.
-  -e, --encoded  \
-                             Treat the key as encoded.
+  -e, --encoded  Treat the key as encoded.
 ";
 
 #[derive(Debug, RustcDecodable)]
