@@ -1,13 +1,9 @@
 use helpers::hash;
-use helpers::pack;
 use helpers::unpack;
-use helpers::vec2str;
 use std::fs::File;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
-use std::io::Write;
-use std::num::Wrapping;
 use types::Error;
 use types::Result;
 use writer::Writer;

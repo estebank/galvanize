@@ -1,14 +1,10 @@
 use helpers::hash;
 use helpers::pack;
-use helpers::unpack;
-use helpers::vec2str;
 use reader::Reader;
-use std::fs::File;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::Write;
-use types::Error;
 use types::Result;
 
 
