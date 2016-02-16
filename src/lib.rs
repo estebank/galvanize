@@ -1,4 +1,5 @@
 use std::io::Error as IOError;
+use std::fs::File;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
@@ -249,15 +250,51 @@ impl<'a, F: Read + Seek + 'a> Reader<'a, F> {
     }
 }
 
+impl<'a> Reader<'a, File> {
+    // Needs to be a file to `truncate` at the end.
+    pub fn as_writer(mut self) -> Result<Writer<'a, File>> {
+        match self.file.seek(SeekFrom::Start(self.table_start as u64)) {
+            Ok(_) => {
+                let mut index: Vec<Vec<(u32, u32)>> = vec![Vec::new(); 256];
+
+                let mut buf = &mut [0 as u8; 8];
+                // Read hash table until end of file to recreate Writer index.
+                while let Ok(s) = self.file.read(buf) {
+                    if s == 0 {
+                        // EOF
+                        break;
+                    }
+                    let h = unpack([buf[0], buf[1], buf[2], buf[3]]);
+                    let pos = unpack([buf[4], buf[5], buf[6], buf[7]]);
+                    index[(h & 0xff) as usize].push((h, pos));
+                }
+
+                // Clear the hash table at the end of the file. It'll be
+                // recreated on `Drop` of the `Writer`.
+                match self.file.set_len(self.table_start as u64) {
+                    Ok(_) => (),
+                    Err(e) => return Err(Error::IOError(e)),
+                }
+                Writer::new_with_index(self.file, index)
+            }
+            Err(e) => Err(Error::IOError(e)),
+        }
+    }
+}
+
 
 impl<'a, F: Write + Read + Seek + 'a> Writer<'a, F> {
     pub fn new(file: &'a mut F) -> Result<Writer<'a, F>> {
         try!(file.seek(SeekFrom::Start(0)).map_err(|e| Error::IOError(e)));
         try!(file.write(&[0; 2048]).map_err(|e| Error::IOError(e)));
 
+        Self::new_with_index(file, vec![Vec::new(); 256])
+    }
+
+    fn new_with_index(file: &'a mut F, index: Vec<Vec<(u32, u32)>>) -> Result<Writer<'a, F>> {
         Ok(Writer {
             file: file,
-            index: vec!(Vec::new(); 256),
+            index: index,
         })
     }
 
@@ -291,7 +328,7 @@ impl<'a, F: Write + Read + Seek + 'a> Writer<'a, F> {
                     }
                 }
             }
-            index.push((self.file.seek(SeekFrom::Current(0)).unwrap() as u32, length));
+            index.push((self.file.seek(SeekFrom::End(0)).unwrap() as u32, length));
             for pair in ordered {
                 &self.file.write(&pack(pair.0));
                 &self.file.write(&pack(pair.1));

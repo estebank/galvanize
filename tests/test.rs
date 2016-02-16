@@ -185,3 +185,60 @@ fn turn_writer_into_reader() {
         }
     }
 }
+
+#[test]
+fn turn_reader_into_writer() {
+    let filename = "reader_into_writer.cdb";
+    let items = [("key".as_bytes(), "this is a value that is sligthly longer that the others".as_bytes()),
+                 ("another key".as_bytes(), "value field".as_bytes()),
+                 ("hi".as_bytes(), "asdf".as_bytes())];
+    let k1 = "key".as_bytes();
+    let k2 = "new key".as_bytes();
+    let v1 = "different value".as_bytes();
+    let v2 = "a value".as_bytes();
+
+    let path = Path::new(filename);
+    {
+        let mut f = File::create(filename).unwrap();
+        let _ = make_writer(&mut f, &items);
+    }
+    {
+        let mut options = OpenOptions::new();
+        options.write(true).read(true);
+
+        let mut f = options.open(path).unwrap();
+        let mut cdb_reader = Reader::new(&mut f).unwrap();
+        // Turn into iteartor to confirm that the reader works as expected.
+        for item in items.iter() {
+            // Fetch first value for a given key.
+            let (k, v) = *item;
+            match cdb_reader.get_first(k) {
+                Ok(val) => assert_eq!(&v[..], &val[..]),
+                Err(e) => panic!("{:?} {:?} {:?}", k, v, e),
+            }
+        }
+
+        // Turn into writer
+        let mut cdb_writer = cdb_reader.as_writer().unwrap();
+        // Add a new value under an existing key
+        let _ = cdb_writer.put(k1, v1);
+        // Add a new value under a new key
+        let _ = cdb_writer.put(k2, v2);
+    }
+    {
+        // Read from the CDB to confirm that both the original data and the
+        // data that was appended are there.
+        let mut f = File::open(filename).unwrap();
+        let mut cdb_reader = Reader::new(&mut f).ok().unwrap();
+        for item in items.iter() {
+            // Fetch first value for a given key.
+            let (k, v) = *item;
+            match cdb_reader.get_first(k) {
+                Ok(val) => assert_eq!(&v[..], &val[..]),
+                Err(e) => panic!("{:?} {:?} {:?}", k, v, e),
+            }
+        }
+        assert_eq!(&v1[..], &cdb_reader.get_from_pos(k1, 1).unwrap()[..]);
+        assert_eq!(&v2[..], &cdb_reader.get_from_pos(k2, 0).unwrap()[..]);
+    }
+}
