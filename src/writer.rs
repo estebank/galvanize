@@ -1,22 +1,53 @@
-use helpers::hash;
-use helpers::pack;
+//! This module allows you to write to a CDB.
+use helpers::{hash, pack};
 use reader::Reader;
-use std::io::Read;
-use std::io::Seek;
-use std::io::SeekFrom;
-use std::io::Write;
+use std::io::{Read, Seek, SeekFrom, Write};
 use types::Result;
 
 
-/// CDB Writer struct
+/// Allows you to create a (or append to) CDB.
+///
+/// #Example
+///
+/// ```
+/// # use galvanize::Result;
+/// use galvanize::Writer;
+/// use std::fs::File;
+///
+/// # // Doing this to get around the fact that you can't have `try!` in `main`.
+/// # fn main() {
+/// #     let _ = do_try();
+/// # }
+/// #
+/// # fn do_try() -> Result<()> {
+/// # let filename = "writer_example.cdb";
+/// #
+/// let mut f = try!(File::create(filename));
+/// let mut cdb_writer = try!(Writer::new(&mut f));
+/// let key = "key".as_bytes();
+/// let value = "value".as_bytes();
+/// try!(cdb_writer.put(key, value));
+///
+/// // Write out the hash table from the `Writer` and transform into a `Reader`
+/// let mut cdb_reader = try!(cdb_writer.as_reader());
+/// let stored_vals = cdb_reader.get(key);
+/// assert_eq!(stored_vals.len(), 1);
+/// assert_eq!(&stored_vals[0][..], &value[..]);  // "value".as_bytes()
+/// #
+/// #     Ok(())
+/// # }
+/// ```
 pub struct Writer<'a, F: Write + Read + Seek + 'a> {
-    // Opened file to write values into.
+    /// Opened file to write values into.
     file: &'a mut F,
-    // Working index for the contents of the CDB.
+    /// Working hash table for the contents of the CDB.
     index: Vec<Vec<(u32, u32)>>,
 }
 
 impl<'a, F: Write + Read + Seek + 'a> Writer<'a, F> {
+    /// Creates a new `Reader` consuming the provided `file`.
+    ///
+    /// The `file` must allow writes to be performed.
     pub fn new(file: &'a mut F) -> Result<Writer<'a, F>> {
         try!(file.seek(SeekFrom::Start(0)));
         try!(file.write(&[0; 2048]));
@@ -24,6 +55,8 @@ impl<'a, F: Write + Read + Seek + 'a> Writer<'a, F> {
         Self::new_with_index(file, vec![Vec::new(); 256])
     }
 
+    /// Used by `Reader::as_writer` method, to prepopulate the index from the
+    /// underlying `file`.
     pub fn new_with_index(file: &'a mut F, index: Vec<Vec<(u32, u32)>>) -> Result<Writer<'a, F>> {
         Ok(Writer {
             file: file,
@@ -45,6 +78,7 @@ impl<'a, F: Write + Read + Seek + 'a> Writer<'a, F> {
         Ok(())
     }
 
+    /// Write out the hash table to the `file` footer.
     fn finalize(&mut self) {
         let mut index: Vec<(u32, u32)> = Vec::new();
 
@@ -75,6 +109,10 @@ impl<'a, F: Write + Read + Seek + 'a> Writer<'a, F> {
         }
     }
 
+    /// Transform this `Writer` into a `Reader` using the same underlying
+    /// `file`.
+    ///
+    /// The `Writer` will flush the hash table to the underlying `file`.
     pub fn as_reader(mut self) -> Result<Reader<'a, F>> {
         {
             let s = &mut self;
@@ -85,7 +123,7 @@ impl<'a, F: Write + Read + Seek + 'a> Writer<'a, F> {
 }
 
 impl<'a, F: Write + Read + Seek + 'a> Drop for Writer<'a, F> {
-    /// Write out the index for this CDB.
+    /// Write out the hash table footer for this CDB.
     fn drop(&mut self) {
         self.finalize();
     }

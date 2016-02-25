@@ -115,36 +115,6 @@ fn read_from_passwords_dump_file() {
 }
 
 #[test]
-fn iterator() {
-    // Use of (key, value) iterator on a CDB Reader.
-    let filename = "tests/testdata/top250pws.cdb";
-    let mut f = File::open(filename).unwrap();
-
-    let mut cdb_reader = Reader::new(&mut f).ok().unwrap();
-    let len = cdb_reader.len();
-
-    let mut i = 0;
-    for (_, v) in cdb_reader.into_iter() {
-        i += 1;
-        let s = &i.to_string();
-        let val = s.as_bytes();
-        assert_eq!(&v[..], &val[..]);
-    }
-    assert_eq!(len, i);
-
-    // Do it again to make sure the iterator doesn't consume and lifetimes work
-    // as expected.
-    i = 0;
-    for (_, v) in cdb_reader.into_iter() {
-        i += 1;
-        let s = &i.to_string();
-        let val = s.as_bytes();
-        assert_eq!(&v[..], &val[..]);
-    }
-    assert_eq!(len, i);
-}
-
-#[test]
 fn keys() {
     // Use of (key, value) iterator on a CDB Reader.
     let filename = "tests/testdata/top250pws.cdb";

@@ -1,24 +1,73 @@
-use helpers::hash;
-use helpers::unpack;
+//! This module allows you to read from a CDB.
+use helpers::{hash, unpack};
 use std::fs::File;
-use std::io::Read;
-use std::io::Seek;
-use std::io::SeekFrom;
-use types::Error;
-use types::Result;
+use std::io::{Read, Seek, SeekFrom};
+use types::{Error, Result};
 use writer::Writer;
 
 
-/// CDB Reader struct
+/// Allows you to read from CDB.
+///
+/// #Example
+///
+/// Given a file stored at `filename` with the following contents:
+///
+/// ```text
+/// {
+///     "key": "value",
+/// }
+/// ```
+///
+/// this is how you can read the stored value:
+///
+/// ```
+/// # use galvanize::Result;
+/// # use galvanize::Writer;
+/// use galvanize::Reader;
+/// use std::fs::File;
+///
+/// # // Doing this to get around the fact that you can't have `try!` in `main`.
+/// # fn main() {
+/// #     let _ = do_try();
+/// # }
+/// #
+/// # fn do_try() -> Result<()> {
+/// # let filename = "reader_example.cdb";
+/// let key = "key".as_bytes();
+/// # {
+/// #     let mut f = try!(File::create(filename));
+/// #     let mut cdb_writer = try!(Writer::new(&mut f));
+/// #     try!(cdb_writer.put(key, "value".as_bytes()));
+/// # }
+///
+/// let mut f = try!(File::open(filename));
+/// let mut cdb_reader = try!(Reader::new(&mut f));
+/// let stored_vals = cdb_reader.get(key);
+/// assert_eq!(stored_vals.len(), 1);
+/// assert_eq!(&stored_vals[0][..], &"value".as_bytes()[..]);
+///
+/// // The CDB contains only one entry:
+/// assert_eq!(cdb_reader.len(), 1);
+///
+/// // Accessing a key that isn't in the CDB:
+/// let non_existing_key = "non_existing_key".as_bytes();
+/// let empty = cdb_reader.get(non_existing_key);
+/// assert_eq!(empty.len(), 0);
+///
+/// assert!(cdb_reader.get_first(non_existing_key).is_err());
+/// #
+/// #     Ok(())
+/// # }
+/// ```
 #[derive(Debug)]
 pub struct Reader<'a, F: Read + Seek + 'a> {
-    // Opened file to read values from.
+    /// Opened file to read values from.
     file: &'a mut F,
-    // Index for the contents of the CDB.
+    /// Index for the contents of the CDB.
     index: Vec<(u32, u32)>,
-    // Position in the file where the index table starts.
+    /// Position in the file where the hash table starts.
     table_start: usize,
-    // How many elements are there in the CDB.
+    /// How many elements are there in the CDB.
     length: usize,
 }
 
@@ -29,8 +78,10 @@ pub struct ItemIterator<'a, 'file: 'a, F: Read + Seek + 'file> {
 
 /// Iterate over (Key, Values) in a CDB until the end of file.
 impl<'a, 'file: 'a, F: Read + Seek + 'file> Iterator for ItemIterator<'a, 'file, F> {
+    /// A single `key`, `value` pair.
     type Item = (Vec<u8>, Vec<u8>);
 
+    /// Fetch the next (`key`, `value`) pair, if any.
     fn next(&mut self) -> Option<Self::Item> {
         match self.reader.file.seek(SeekFrom::Current(0)) {
             Ok(pos) => {
@@ -40,7 +91,7 @@ impl<'a, 'file: 'a, F: Read + Seek + 'file> Iterator for ItemIterator<'a, 'file,
             }
             Err(_) => return None,
         }
-        // We're in the Footer of the file, no more items.
+        // We're in the Footer/Hash Table of the file, no more items.
         let mut buf: [u8; 8] = [0; 8];
         {
             let mut chunk = self.reader.file.take(8);
@@ -65,8 +116,48 @@ impl<'a, 'file: 'a, F: Read + Seek + 'file> Iterator for ItemIterator<'a, 'file,
     }
 }
 
+/// Convert a [`Reader`]() CDB into an `Iterator`.
+///
+/// One use of this, is using Rust's `for` loop syntax.
+/// #Example
+/// ```
+/// # use galvanize::Reader;
+/// # use std::fs::File;
+/// # let filename = "tests/testdata/top250pws.cdb";
+/// let mut f = File::open(filename).unwrap();
+///
+/// let mut cdb_reader = Reader::new(&mut f).ok().unwrap();
+/// let len = cdb_reader.len();
+///
+/// # let mut i = 0;
+/// for (k, v) in cdb_reader.into_iter() {
+///     // Consume the (k, v) pair.
+/// #    let _ = k;
+/// #    i += 1;
+/// #    let s = &i.to_string();
+/// #    let val = s.as_bytes();
+/// #    assert_eq!(&v[..], &val[..]);
+/// }
+/// # assert_eq!(len, i);
+/// #
+/// # // Do it again to make sure the iterator doesn't consume and lifetimes
+/// # // work as expected.
+/// # i = 0;
+/// # for (_, v) in cdb_reader.into_iter() {
+/// #     i += 1;
+/// #     let s = &i.to_string();
+/// #     let val = s.as_bytes();
+/// #     assert_eq!(&v[..], &val[..]);
+/// # }
+/// # assert_eq!(len, i);
+/// ```
 impl<'a, 'file: 'a, F: Read + Seek + 'file> IntoIterator for &'a mut Reader<'file, F> {
+
+    /// A single `key`, `value` pair.
     type Item = (Vec<u8>, Vec<u8>);
+
+    /// The [`ItemIterator`](struct.ItemIterator.html) type this will convert
+    /// into.
     type IntoIter = ItemIterator<'a, 'file, F>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -76,6 +167,7 @@ impl<'a, 'file: 'a, F: Read + Seek + 'file> IntoIterator for &'a mut Reader<'fil
 }
 
 impl<'a, F: Read + Seek + 'a> Reader<'a, F> {
+    /// Creates a new `Reader` consuming the provided `file`.
     pub fn new(file: &'a mut F) -> Result<Reader<'a, F>> {
         match file.seek(SeekFrom::End(0)) {
             Err(e) => return Err(Error::IOError(e)),
@@ -113,10 +205,12 @@ impl<'a, F: Read + Seek + 'a> Reader<'a, F> {
         })
     }
 
+    /// How many `(key, value)` pairs are there in this Read Only CDB.
     pub fn len(&self) -> usize {
         self.length
     }
 
+    /// Return a `Vec` of all the values under the given `key`.
     pub fn get(&mut self, key: &[u8]) -> Vec<Vec<u8>> {
         let mut i = 0;
         let mut values: Vec<Vec<u8>> = vec![];
@@ -130,6 +224,10 @@ impl<'a, F: Read + Seek + 'a> Reader<'a, F> {
         values
     }
 
+    /// Return a `Vec` of all the keys in this Read Only CDB.
+    ///
+    /// Keep in mind that if there're duplicated keys, they will appear
+    /// multiple times in the resulting `Vec`.
     pub fn keys(&mut self) -> Vec<Vec<u8>> {
         let mut keys: Vec<Vec<u8>> = vec![];
         for item in self.into_iter() {
@@ -138,12 +236,14 @@ impl<'a, F: Read + Seek + 'a> Reader<'a, F> {
         keys
     }
 
-    /// Pull the `value` bytes for the first occurence of the given `key` in this CDB.
+    /// Pull the `value` bytes for the first occurence of the given `key` in
+    /// this CDB.
     pub fn get_first(&mut self, key: &[u8]) -> Result<Vec<u8>> {
         self.get_from_pos(key, 0)
     }
 
-    /// Pull the `value` bytes for the `index`st occurence of the given `key` in this CDB.
+    /// Pull the `value` bytes for the `index`st occurence of the given `key`
+    /// in this CDB.
     pub fn get_from_pos(&mut self, key: &[u8], index: u32) -> Result<Vec<u8>> {
         // Truncate to 32 bits and remove sign.
         let h = hash(key) & 0xffffffff;
@@ -210,8 +310,13 @@ impl<'a, F: Read + Seek + 'a> Reader<'a, F> {
     }
 }
 
+// Needs to be a file to `truncate` at the end.
 impl<'a> Reader<'a, File> {
-    // Needs to be a file to `truncate` at the end.
+    /// Transform this `Reader` into a `Writer` using the same underlying
+    /// `file`.
+    ///
+    /// The underlying file will have its hash table `truncate`d. This will be
+    /// regenerated on `Writer` drop.
     pub fn as_writer(mut self) -> Result<Writer<'a, File>> {
         match self.file.seek(SeekFrom::Start(self.table_start as u64)) {
             Ok(_) => {

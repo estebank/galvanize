@@ -30,7 +30,7 @@ Options:
   -e, --encoded  Treat the key as encoded.
 ";
 
-#[derive(Debug, RustcDecodable)]
+#[derive(Debug, RustcDecodable)] #[allow(non_snake_case)]
 struct Args {
     arg_FILE: String,
     cmd_get: bool,
