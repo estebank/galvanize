@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["Error","An error in the interaction with the CDB."]],"type":[["Result",""]]});

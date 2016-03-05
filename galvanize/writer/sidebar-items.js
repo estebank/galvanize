@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["Writer","Allows you to create a (or append to) CDB."]]});

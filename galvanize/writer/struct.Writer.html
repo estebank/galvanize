@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Writer` struct in crate `galvanize`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Writer">
+
+    <title>galvanize::writer::Writer - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../main.css">
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../index.html'>galvanize</a>::<wbr><a href='index.html'>writer</a></p><script>window.sidebarCurrent = {name: 'Writer', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>galvanize</a>::<wbr><a href='index.html'>writer</a>::<wbr><a class='struct' href=''>Writer</a></span><span class='out-of-band'><span id='render-detail'>
+            <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                [<span class='inner'>&#x2212;</span>]
+            </a>
+        </span><a id='src-209' class='srclink' href='../../src/galvanize/writer.rs.html#40-45' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct Writer&lt;'a, F: <a class='trait' href='https://doc.rust-lang.org/nightly/std/io/trait.Write.html' title='std::io::Write'>Write</a> + <a class='trait' href='https://doc.rust-lang.org/nightly/std/io/trait.Read.html' title='std::io::Read'>Read</a> + <a class='trait' href='https://doc.rust-lang.org/nightly/std/io/trait.Seek.html' title='std::io::Seek'>Seek</a> + 'a&gt; {
+    // some fields omitted
+}</pre><div class='docblock'><p>Allows you to create a (or append to) CDB.</p>
+
+<h1 id='example' class='section-header'><a href='#example'>Example</a></h1><pre class='rust rust-example-rendered'>
+<span class='kw'>use</span> <span class='ident'>galvanize</span>::<span class='ident'>Writer</span>;
+<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>fs</span>::<span class='ident'>File</span>;
+
+<span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>f</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>File</span>::<span class='ident'>create</span>(<span class='ident'>filename</span>));
+<span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>cdb_writer</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>Writer</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f</span>));
+<span class='kw'>let</span> <span class='ident'>key</span> <span class='op'>=</span> <span class='string'>&quot;key&quot;</span>.<span class='ident'>as_bytes</span>();
+<span class='kw'>let</span> <span class='ident'>value</span> <span class='op'>=</span> <span class='string'>&quot;value&quot;</span>.<span class='ident'>as_bytes</span>();
+<span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>cdb_writer</span>.<span class='ident'>put</span>(<span class='ident'>key</span>, <span class='ident'>value</span>));
+
+<span class='comment'>// Write out the hash table from the `Writer` and transform into a `Reader`</span>
+<span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>cdb_reader</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>cdb_writer</span>.<span class='ident'>as_reader</span>());
+<span class='kw'>let</span> <span class='ident'>stored_vals</span> <span class='op'>=</span> <span class='ident'>cdb_reader</span>.<span class='ident'>get</span>(<span class='ident'>key</span>);
+<span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>stored_vals</span>.<span class='ident'>len</span>(), <span class='number'>1</span>);
+<span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='kw-2'>&amp;</span><span class='ident'>stored_vals</span>[<span class='number'>0</span>][..], <span class='kw-2'>&amp;</span><span class='ident'>value</span>[..]);  <span class='comment'>// &quot;value&quot;.as_bytes()</span></pre>
+</div><h2 id='methods'>Methods</h2><h3 class='impl'><code>impl&lt;'a, F: <a class='trait' href='https://doc.rust-lang.org/nightly/std/io/trait.Write.html' title='std::io::Write'>Write</a> + <a class='trait' href='https://doc.rust-lang.org/nightly/std/io/trait.Read.html' title='std::io::Read'>Read</a> + <a class='trait' href='https://doc.rust-lang.org/nightly/std/io/trait.Seek.html' title='std::io::Seek'>Seek</a> + 'a&gt; <a class='struct' href='../../galvanize/writer/struct.Writer.html' title='galvanize::writer::Writer'>Writer</a>&lt;'a, F&gt;</code></h3><div class='impl-items'><h4 id='method.new' class='method'><code>fn <a href='#method.new' class='fnname'>new</a>(file: &amp;'a mut F) -&gt; <a class='type' href='../../galvanize/types/type.Result.html' title='galvanize::types::Result'>Result</a>&lt;<a class='struct' href='../../galvanize/writer/struct.Writer.html' title='galvanize::writer::Writer'>Writer</a>&lt;'a, F&gt;&gt;</code></h4>
+<div class='docblock'><p>Creates a new <code>Reader</code> consuming the provided <code>file</code>.</p>
+
+<p>The <code>file</code> must allow writes to be performed.</p>
+</div><h4 id='method.new_with_index' class='method'><code>fn <a href='#method.new_with_index' class='fnname'>new_with_index</a>(file: &amp;'a mut F, index: <a class='struct' href='https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;<a href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(<a href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, <a href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>)</a>&gt;&gt;) -&gt; <a class='type' href='../../galvanize/types/type.Result.html' title='galvanize::types::Result'>Result</a>&lt;<a class='struct' href='../../galvanize/writer/struct.Writer.html' title='galvanize::writer::Writer'>Writer</a>&lt;'a, F&gt;&gt;</code></h4>
+<div class='docblock'><p>Used by <code>Reader::as_writer</code> method, to prepopulate the index from the
+underlying <code>file</code>.</p>
+</div><h4 id='method.put' class='method'><code>fn <a href='#method.put' class='fnname'>put</a>(&amp;mut self, key: <a href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a><a href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a><a href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>, value: <a href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a><a href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a><a href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>) -&gt; <a class='type' href='../../galvanize/types/type.Result.html' title='galvanize::types::Result'>Result</a>&lt;<a href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>&gt;</code></h4>
+<div class='docblock'><p>Write <code>value</code> for <code>key</code> into this CDB.</p>
+</div><h4 id='method.as_reader' class='method'><code>fn <a href='#method.as_reader' class='fnname'>as_reader</a>(self) -&gt; <a class='type' href='../../galvanize/types/type.Result.html' title='galvanize::types::Result'>Result</a>&lt;<a class='struct' href='../../galvanize/reader/struct.Reader.html' title='galvanize::reader::Reader'>Reader</a>&lt;'a, F&gt;&gt;</code></h4>
+<div class='docblock'><p>Transform this <code>Writer</code> into a <code>Reader</code> using the same underlying
+<code>file</code>.</p>
+
+<p>The <code>Writer</code> will flush the hash table to the underlying <code>file</code>.</p>
+</div></div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><code>impl&lt;'a, F: <a class='trait' href='https://doc.rust-lang.org/nightly/std/io/trait.Write.html' title='std::io::Write'>Write</a> + <a class='trait' href='https://doc.rust-lang.org/nightly/std/io/trait.Read.html' title='std::io::Read'>Read</a> + <a class='trait' href='https://doc.rust-lang.org/nightly/std/io/trait.Seek.html' title='std::io::Seek'>Seek</a> + 'a&gt; <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html' title='core::ops::Drop'>Drop</a> for <a class='struct' href='../../galvanize/writer/struct.Writer.html' title='galvanize::writer::Writer'>Writer</a>&lt;'a, F&gt;</code></h3><div class='impl-items'><h4 id='method.drop' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html#method.drop' class='fnname'>drop</a>(&amp;mut self)</code></h4>
+</div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "galvanize";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../jquery.js"></script>
+    <script src="../../main.js"></script>
+    
+    <script async src="../../search-index.js"></script>
+</body>
+</html>

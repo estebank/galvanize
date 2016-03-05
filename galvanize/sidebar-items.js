@@ -1,0 +1,1 @@
+initSidebarItems({"mod":[["helpers","Various functions that are used across both the writer and reader modules."],["reader","This module allows you to read from a CDB."],["types","This module contains the possible responses from the public interfaces in this crate."],["writer","This module allows you to write to a CDB."]]});

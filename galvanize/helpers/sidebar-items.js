@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["hash","DJB hash function"],["pack","Get array of bytes from an `u32`."],["unpack","Get an `u32` from an array of 4 bytes."],["vec2str","Represent an iterable of bytes as \"lossy\" `utf8` `String`."]]});

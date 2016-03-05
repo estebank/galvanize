@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `galvanize` crate.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, galvanize">
+
+    <title>galvanize - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../main.css">
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'></p><script>window.sidebarCurrent = {name: 'galvanize', ty: 'mod', relpath: '../'};</script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Crate <a class='mod' href=''>galvanize</a></span><span class='out-of-band'><span id='render-detail'>
+            <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                [<span class='inner'>&#x2212;</span>]
+            </a>
+        </span><a id='src-0' class='srclink' href='../src/galvanize/lib.rs.html#1-148' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>Manipulate <a href="http://cr.yp.to/cdb.html">DJB&#39;s Constant Database</a> files. These
+are 2 level disk-based hash tables that efficiently handle thousands of
+keys, while remaining space-efficient.</p>
+
+<p>Constant databases have the desirable property of requiring low overhead to
+open.</p>
+
+<blockquote>
+
+<h1 id='what-is-it' class='section-header'><a href='#what-is-it'>What is it?</a></h1>
+<p>cdb is a fast, reliable, simple package for creating and reading constant
+databases. Its database structure provides several features:</p>
+
+<ul>
+<li>Fast lookups: A successful lookup in a large database normally takes
+just two disk accesses. An unsuccessful lookup takes only one.</li>
+<li>Low overhead: A database uses 2048 bytes, plus 24 bytes per record, plus
+the space for keys and data.</li>
+<li>No random limits: cdb can handle any database up to 4 gigabytes. There
+are no other restrictions; records don&#39;t even have to fit into memory.
+Databases are stored in a machine-independent format.</li>
+<li>Fast atomic database replacement: cdbmake can rewrite an entire database
+two orders of magnitude faster than other hashing packages.</li>
+<li>Fast database dumps: cdbdump prints the contents of a database in
+cdbmake-compatible format.</li>
+</ul>
+
+<p>cdb is designed to be used in mission-critical applications like e-mail.
+Database replacement is safe against system crashes. Readers don&#39;t have
+to pause during a rewrite.</p>
+
+<h1 id='a-structure-for-constant-databases' class='section-header'><a href='#a-structure-for-constant-databases'>A structure for constant databases</a></h1>
+<p>Copyright 1996<br>
+<a href="mailto:djb@pobox.com">D. J. Bernstein</a></p>
+
+<p>A cdb is an associative array: it maps strings (<code>keys</code>) to strings
+(<code>data</code>).</p>
+
+<p>A cdb contains 256 pointers to linearly probed open hash tables. The
+hash tables contain pointers to <code>(key, data)</code> pairs. A cdb is stored in
+a single file on disk:</p>
+
+<pre><code class="language-text">+----------------+---------+-------+-------+-----+---------+
+| p0 p1 ... p255 | records | hash0 | hash1 | ... | hash255 |
++----------------+---------+-------+-------+-----+---------+
+</code></pre>
+
+<p>Each of the 256 initial pointers states a position and a length. The
+position is the starting byte position of the hash table. The length
+is the number of slots in the hash table.</p>
+
+<p>Records are stored sequentially, without special alignment. A record
+states a key length, a data length, the key, and the data.</p>
+
+<p>Each hash table slot states a hash value and a byte position. If the
+byte position is 0, the slot is empty. Otherwise, the slot points to
+a record whose key has that hash value.</p>
+
+<p>Positions, lengths, and hash values are 32-bit quantities, stored in
+little-endian form in 4 bytes. Thus a cdb must fit into 4 gigabytes.</p>
+
+<p>A record is located as follows. Compute the hash value of the key in
+the record. The hash value modulo 256 is the number of a hash table.
+The hash value divided by 256, modulo the length of that table, is a
+slot number. Probe that slot, the next higher slot, and so on, until
+you find the record or run into an empty slot.</p>
+
+<p>The cdb hash function is <code>h = ((h &lt;&lt; 5) + h) ^ c</code>, with a starting
+hash of <code>5381</code>.</p>
+</blockquote>
+
+<h1 id='example' class='section-header'><a href='#example'>Example</a></h1>
+<p>To write to a new CDB:</p>
+<pre class='rust rust-example-rendered'>
+<span class='kw'>use</span> <span class='ident'>galvanize</span>::<span class='ident'>Writer</span>;
+<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>fs</span>::<span class='ident'>File</span>;
+
+<span class='kw'>let</span> <span class='ident'>key</span> <span class='op'>=</span> <span class='string'>&quot;key&quot;</span>.<span class='ident'>as_bytes</span>();
+<span class='kw'>let</span> <span class='ident'>value</span> <span class='op'>=</span> <span class='string'>&quot;value&quot;</span>.<span class='ident'>as_bytes</span>();
+
+<span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>f</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>File</span>::<span class='ident'>create</span>(<span class='ident'>filename</span>));
+<span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>cdb_writer</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>Writer</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f</span>));
+<span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>cdb_writer</span>.<span class='ident'>put</span>(<span class='ident'>key</span>, <span class='ident'>value</span>));</pre>
+
+<p>To read from an existing CDB:</p>
+<pre class='rust rust-example-rendered'>
+<span class='kw'>use</span> <span class='ident'>galvanize</span>::<span class='ident'>Reader</span>;
+
+<span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>f</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>File</span>::<span class='ident'>open</span>(<span class='ident'>filename</span>));
+<span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>cdb_reader</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>Reader</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f</span>));
+
+<span class='kw'>let</span> <span class='ident'>stored_vals</span> <span class='op'>=</span> <span class='ident'>cdb_reader</span>.<span class='ident'>get</span>(<span class='ident'>key</span>);
+<span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>stored_vals</span>.<span class='ident'>len</span>(), <span class='number'>1</span>);
+<span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='kw-2'>&amp;</span><span class='ident'>stored_vals</span>[<span class='number'>0</span>][..], <span class='kw-2'>&amp;</span><span class='ident'>value</span>[..]);  <span class='comment'>// &quot;value&quot;.as_bytes()</span>
+
+<span class='comment'>// The CDB contains only one entry:</span>
+<span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>cdb_reader</span>.<span class='ident'>len</span>(), <span class='number'>1</span>);
+
+<span class='kw'>let</span> <span class='ident'>non_existing_key</span> <span class='op'>=</span> <span class='string'>&quot;non_existing_key&quot;</span>.<span class='ident'>as_bytes</span>();
+<span class='kw'>let</span> <span class='ident'>empty</span> <span class='op'>=</span> <span class='ident'>cdb_reader</span>.<span class='ident'>get</span>(<span class='ident'>non_existing_key</span>);
+<span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>empty</span>.<span class='ident'>len</span>(), <span class='number'>0</span>);
+
+<span class='comment'>// Accessing a key that isn&#39;t in the CDB:</span>
+<span class='kw'>let</span> <span class='ident'>non_existing_key</span> <span class='op'>=</span> <span class='string'>&quot;non_existing_key&quot;</span>.<span class='ident'>as_bytes</span>();
+<span class='kw'>let</span> <span class='ident'>empty</span> <span class='op'>=</span> <span class='ident'>cdb_reader</span>.<span class='ident'>get</span>(<span class='ident'>non_existing_key</span>);
+<span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>empty</span>.<span class='ident'>len</span>(), <span class='number'>0</span>);
+
+<span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>cdb_reader</span>.<span class='ident'>get_first</span>(<span class='ident'>non_existing_key</span>).<span class='ident'>is_err</span>());</pre>
+</div><h2 id='reexports' class='section-header'><a href="#reexports">Reexports</a></h2>
+<table><tr><td><code>pub use reader::<a class='struct' href='../galvanize/reader/struct.Reader.html' title='galvanize::reader::Reader'>Reader</a>;</code></td></tr><tr><td><code>pub use types::{<a class='enum' href='../galvanize/types/enum.Error.html' title='galvanize::types::Error'>Error</a>, <a class='type' href='../galvanize/types/type.Result.html' title='galvanize::types::Result'>Result</a>};</code></td></tr><tr><td><code>pub use writer::<a class='struct' href='../galvanize/writer/struct.Writer.html' title='galvanize::writer::Writer'>Writer</a>;</code></td></tr></table><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
+<table>
+                    <tr class=' module-item'>
+                        <td><a class='mod' href='helpers/index.html'
+                               title='galvanize::helpers'>helpers</a></td>
+                        <td class='docblock short'>
+                             <p>Various functions that are used across both the writer and reader modules.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='mod' href='reader/index.html'
+                               title='galvanize::reader'>reader</a></td>
+                        <td class='docblock short'>
+                             <p>This module allows you to read from a CDB.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='mod' href='types/index.html'
+                               title='galvanize::types'>types</a></td>
+                        <td class='docblock short'>
+                             <p>This module contains the possible responses from the public interfaces in
+this crate.</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='mod' href='writer/index.html'
+                               title='galvanize::writer'>writer</a></td>
+                        <td class='docblock short'>
+                             <p>This module allows you to write to a CDB.</p>
+
+                        </td>
+                    </tr>
+                </table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "galvanize";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    
+    <script async src="../search-index.js"></script>
+</body>
+</html>
