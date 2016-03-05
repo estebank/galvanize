@@ -8,12 +8,8 @@ readme = "README.md"
 license = "MIT"
 exclude = [
   '*.cdb',
-  'tests/*.cdb',
 ]
 
 [lib]
 name = "galvanize"
 path = "src/lib.rs"
-
-[dependencies]
-rustc-serialize = "0.3"
