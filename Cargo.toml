@@ -1,9 +1,10 @@
 [package]
 name = "galvanize"
-version = "0.0.1"
+version = "0.0.2"
 authors = ["Esteban Küber <esteban@kuber.com.ar>"]
 description = "Pure Rust CDB library."
 repository = "https://github.com/estebank/galvanize"
+documentation = "https://docs.rs/galvanize"
 readme = "README.md"
 license = "MIT"
 exclude = [
@@ -13,3 +14,10 @@ exclude = [
 [lib]
 name = "galvanize"
 path = "src/lib.rs"
+
+[features]
+cli = ["docopt", "rustc-serialize"]
+
+[dependencies]
+docopt = { version = "0.6", optional = true }
+rustc-serialize = { version = "0.3", optional = true }

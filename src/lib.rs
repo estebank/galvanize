@@ -87,9 +87,9 @@
 //! let key = "key".as_bytes();
 //! let value = "value".as_bytes();
 //!
-//! let mut f = try!(File::create(filename));
-//! let mut cdb_writer = try!(Writer::new(&mut f));
-//! try!(cdb_writer.put(key, value));
+//! let mut f = File::create(filename)?;
+//! let mut cdb_writer = Writer::new(&mut f)?;
+//! cdb_writer.put(key, value)?;
 //! #
 //! #     Ok(())
 //! # }
@@ -110,8 +110,8 @@
 //! # fn do_try() -> Result<()> {
 //! # let filename = "lib_writer_example.cdb";
 //! #
-//! let mut f = try!(File::open(filename));
-//! let mut cdb_reader = try!(Reader::new(&mut f));
+//! let mut f = File::open(filename)?;
+//! let mut cdb_reader = Reader::new(&mut f)?;
 //! #
 //! # let key = "key".as_bytes();
 //! # let value = "value".as_bytes();

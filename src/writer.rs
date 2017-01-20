@@ -22,14 +22,14 @@ use types::Result;
 /// # fn do_try() -> Result<()> {
 /// # let filename = "writer_example.cdb";
 /// #
-/// let mut f = try!(File::create(filename));
-/// let mut cdb_writer = try!(Writer::new(&mut f));
+/// let mut f = File::create(filename)?;
+/// let mut cdb_writer = Writer::new(&mut f)?;
 /// let key = "key".as_bytes();
 /// let value = "value".as_bytes();
-/// try!(cdb_writer.put(key, value));
+/// cdb_writer.put(key, value)?;
 ///
 /// // Write out the hash table from the `Writer` and transform into a `Reader`
-/// let mut cdb_reader = try!(cdb_writer.as_reader());
+/// let mut cdb_reader = cdb_writer.as_reader()?;
 /// let stored_vals = cdb_reader.get(key);
 /// assert_eq!(stored_vals.len(), 1);
 /// assert_eq!(&stored_vals[0][..], &value[..]);  // "value".as_bytes()
@@ -49,8 +49,8 @@ impl<'a, F: Write + Read + Seek + 'a> Writer<'a, F> {
     ///
     /// The `file` must allow writes to be performed.
     pub fn new(file: &'a mut F) -> Result<Writer<'a, F>> {
-        try!(file.seek(SeekFrom::Start(0)));
-        try!(file.write(&[0; 2048]));
+        file.seek(SeekFrom::Start(0))?;
+        file.write(&[0; 2048])?;
 
         Self::new_with_index(file, vec![Vec::new(); 256])
     }
@@ -66,12 +66,12 @@ impl<'a, F: Write + Read + Seek + 'a> Writer<'a, F> {
 
     /// Write `value` for `key` into this CDB.
     pub fn put(&mut self, key: &[u8], value: &[u8]) -> Result<()> {
-        let pos = try!(self.file.seek(SeekFrom::Current(0))) as u32;
-        try!(self.file.write(&pack(key.len() as u32)));
-        try!(self.file.write(&pack(value.len() as u32)));
+        let pos = self.file.seek(SeekFrom::Current(0))? as u32;
+        self.file.write(&pack(key.len() as u32))?;
+        self.file.write(&pack(value.len() as u32))?;
 
-        try!(self.file.write(key));
-        try!(self.file.write(value));
+        self.file.write(key)?;
+        self.file.write(value)?;
 
         let h = hash(key) & 0xffffffff;
         self.index[(h & 0xff) as usize].push((h, pos));

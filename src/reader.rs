@@ -35,13 +35,13 @@ use writer::Writer;
 /// # let filename = "reader_example.cdb";
 /// let key = "key".as_bytes();
 /// # {
-/// #     let mut f = try!(File::create(filename));
-/// #     let mut cdb_writer = try!(Writer::new(&mut f));
-/// #     try!(cdb_writer.put(key, "value".as_bytes()));
+/// #     let mut f = File::create(filename)?;
+/// #     let mut cdb_writer = Writer::new(&mut f)?;
+/// #     cdb_writer.put(key, "value".as_bytes());
 /// # }
 ///
-/// let mut f = try!(File::open(filename));
-/// let mut cdb_reader = try!(Reader::new(&mut f));
+/// let mut f = File::open(filename)?;
+/// let mut cdb_reader = Reader::new(&mut f)?;
 /// let stored_vals = cdb_reader.get(key);
 /// assert_eq!(stored_vals.len(), 1);
 /// assert_eq!(&stored_vals[0][..], &"value".as_bytes()[..]);
@@ -178,14 +178,15 @@ impl<'a, F: Read + Seek + 'a> Reader<'a, F> {
             }
         };
 
+        // Using u32 instead of usize as standard CDBs can only be 4GB in size.
         let mut index: Vec<(u32, u32)> = vec![];
         let mut sum: u32 = 0;
 
         let mut buf: Vec<u8> = vec![];
         {
-            try!(file.seek(SeekFrom::Start(0)));
+            file.seek(SeekFrom::Start(0))?;
             let mut chunk = file.take(2048);
-            try!(chunk.read_to_end(&mut buf));
+            chunk.read_to_end(&mut buf)?;
         }
 
         for ix in 0..2048 / 8 {
@@ -264,9 +265,9 @@ impl<'a, F: Read + Seek + 'a> Reader<'a, F> {
                            .map(|item| item.1) {
                 let mut buf: [u8; 8] = [0; 8];
                 {
-                    try!(self.file.seek(SeekFrom::Start(pos as u64)));
+                    self.file.seek(SeekFrom::Start(pos as u64))?;
                     let mut chunk = self.file.take(8);
-                    try!(chunk.read(&mut buf));
+                    chunk.read(&mut buf)?;
                 }
                 let rec_h = unpack([buf[0], buf[1], buf[2], buf[3]]);
                 let rec_pos = unpack([buf[4], buf[5], buf[6], buf[7]]);
@@ -277,9 +278,9 @@ impl<'a, F: Read + Seek + 'a> Reader<'a, F> {
                 } else if rec_h == h {
                     // Hash of key found in file.
                     {
-                        try!(self.file.seek(SeekFrom::Start(rec_pos as u64)));
+                        self.file.seek(SeekFrom::Start(rec_pos as u64))?;
                         let mut chunk = self.file.take(8);
-                        try!(chunk.read(&mut buf));
+                        chunk.read(&mut buf)?;
                     }
                     let klen = unpack([buf[0], buf[1], buf[2], buf[3]]);
                     let dlen = unpack([buf[4], buf[5], buf[6], buf[7]]);
@@ -287,7 +288,7 @@ impl<'a, F: Read + Seek + 'a> Reader<'a, F> {
                     let mut buf: Vec<u8> = vec![];
                     {
                         let mut chunk = self.file.take(klen as u64);
-                        try!(chunk.read_to_end(&mut buf));
+                        chunk.read_to_end(&mut buf)?;
                     }
                     {
                         if buf == key {
@@ -295,7 +296,7 @@ impl<'a, F: Read + Seek + 'a> Reader<'a, F> {
                             buf.clear();
 
                             let mut chunk = self.file.take(dlen as u64);
-                            try!(chunk.read_to_end(&mut buf));
+                            chunk.read_to_end(&mut buf)?;
 
                             if counter == index {
                                 return Ok(buf);
