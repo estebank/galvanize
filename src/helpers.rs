@@ -3,7 +3,6 @@
 //! You shouldn't need to use this module directly.
 use std::num::Wrapping;
 
-
 /// DJB hash function
 ///
 /// It is `h = ((h << 5) + h) ^ c`, with a starting hash of `5381`.

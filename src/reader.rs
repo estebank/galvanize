@@ -5,7 +5,6 @@ use std::io::{Read, Seek, SeekFrom};
 use types::{Error, Result};
 use writer::Writer;
 
-
 /// Allows you to read from CDB.
 ///
 /// #Example
@@ -97,8 +96,8 @@ impl<'a, 'file: 'a, F: Read + Seek + 'file> Iterator for ItemIterator<'a, 'file,
             let mut chunk = self.reader.file.take(8);
             let _ = chunk.read(&mut buf);
         }
-        let k = unpack([buf[0], buf[1], buf[2], buf[3]]);  // Key length
-        let v = unpack([buf[4], buf[5], buf[6], buf[7]]);  // Value length
+        let k = unpack([buf[0], buf[1], buf[2], buf[3]]); // Key length
+        let v = unpack([buf[4], buf[5], buf[6], buf[7]]); // Value length
 
         let mut key: Vec<u8> = vec![];
         {
@@ -152,7 +151,6 @@ impl<'a, 'file: 'a, F: Read + Seek + 'file> Iterator for ItemIterator<'a, 'file,
 /// # assert_eq!(len, i);
 /// ```
 impl<'a, 'file: 'a, F: Read + Seek + 'file> IntoIterator for &'a mut Reader<'file, F> {
-
     /// A single `key`, `value` pair.
     type Item = (Vec<u8>, Vec<u8>);
 
@@ -259,10 +257,11 @@ impl<'a, F: Read + Seek + 'a> Reader<'a, F> {
             // Every 8 bytes from the slot offset to the end, and then from the
             // end to the slot_offset.
             for pos in (slot_off..end)
-                           .chain(start..slot_off)
-                           .enumerate()
-                           .filter(|item| item.0 % 8 == 0)
-                           .map(|item| item.1) {
+                .chain(start..slot_off)
+                .enumerate()
+                .filter(|item| item.0 % 8 == 0)
+                .map(|item| item.1)
+            {
                 let mut buf: [u8; 8] = [0; 8];
                 {
                     self.file.seek(SeekFrom::Start(pos as u64))?;

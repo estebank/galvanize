@@ -3,11 +3,11 @@
 //!
 //! [`Result<T>`](type.Result.html) can be either `T` or an
 //! [`Error`](enum.Error.html).
-use std::io::Error as IOError;
-use std::result;
+use std::convert::From;
 use std::error;
 use std::fmt;
-use std::convert::From;
+use std::io::Error as IOError;
+use std::result;
 
 /// An error in the interaction with the CDB.
 #[derive(Debug)]
@@ -39,7 +39,7 @@ impl error::Error for Error {
         match *self {
             Error::CDBTooSmall => "The file is too small to be a valid CDB",
             Error::KeyNotInCDB => "The key is not in the CDB",
-            // The underlying error already impl `Error`, so we defer to its 
+            // The underlying error already impl `Error`, so we defer to its
             // implementation.
             Error::IOError(ref e) => e.description(),
         }

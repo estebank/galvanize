@@ -1,8 +1,8 @@
 extern crate galvanize;
 
+use galvanize::helpers::hash;
 use galvanize::Reader;
 use galvanize::Writer;
-use galvanize::helpers::hash;
 use std::fs::File;
 use std::fs::OpenOptions;
 use std::io::Read;
@@ -10,18 +10,20 @@ use std::io::Seek;
 use std::io::Write;
 use std::path::Path;
 
-
 #[test]
 fn known_good_djb_hash() {
-  assert_eq!(hash("dave".as_bytes()), 2087378131);
+    assert_eq!(hash("dave".as_bytes()), 2087378131);
 }
 
 #[test]
 fn djb_correct_wrapping() {
-  assert_eq!(hash("davedavedavedavedave".as_bytes()), 3529598163);
+    assert_eq!(hash("davedavedavedavedave".as_bytes()), 3529598163);
 }
 
-fn make_writer<'a, F: Write + Read + Seek>(file: &'a mut F, items: &[(&[u8], &[u8])]) -> Writer<'a, F> {
+fn make_writer<'a, F: Write + Read + Seek>(
+    file: &'a mut F,
+    items: &[(&[u8], &[u8])],
+) -> Writer<'a, F> {
     // This is how you write into a CDB.
     let mut cdb_writer = Writer::new(file).ok().unwrap();
 
@@ -35,10 +37,14 @@ fn make_writer<'a, F: Write + Read + Seek>(file: &'a mut F, items: &[(&[u8], &[u
 #[test]
 fn create_file() {
     let filename = "new_file.cdb";
-    let items = [("key".as_bytes(),
-                  "this is a value that is sligthly longer that the others".as_bytes()),
-                 ("another key".as_bytes(), "value field".as_bytes()),
-                 ("hi".as_bytes(), "asdf".as_bytes())];
+    let items = [
+        (
+            "key".as_bytes(),
+            "this is a value that is sligthly longer that the others".as_bytes(),
+        ),
+        ("another key".as_bytes(), "value field".as_bytes()),
+        ("hi".as_bytes(), "asdf".as_bytes()),
+    ];
     {
         let mut f = File::create(filename).unwrap();
         let mut cdb_writer = make_writer(&mut f, &items);
@@ -75,12 +81,15 @@ fn create_file() {
                 Err(e) => panic!("Error reading first value from key {:?}: {:?}", i, e),
             }
             match cdb_reader.get_from_pos(&[i], 1) {
-                Ok(v) => assert_eq!(&[128 -i], &v[..]),
+                Ok(v) => assert_eq!(&[128 - i], &v[..]),
                 Err(e) => panic!("Error reading second value from key {:?}: {:?}", i, e),
             }
         }
 
-        assert_eq!(cdb_reader.get("25".as_bytes()), vec!["a".as_bytes(), "b".as_bytes()]);
+        assert_eq!(
+            cdb_reader.get("25".as_bytes()),
+            vec!["a".as_bytes(), "b".as_bytes()]
+        );
         assert_eq!(cdb_reader.len(), 261);
     }
 }
@@ -106,11 +115,14 @@ fn read_from_passwords_dump_file() {
 
     let mut cdb_reader = Reader::new(&mut f).ok().unwrap();
 
-    assert_eq!(cdb_reader.get("f7396427246008f9d580c9a666000976".as_bytes()),
-               vec!["defton".as_bytes(),
-                    "deftones".as_bytes(),
-                    "DEFTONES".as_bytes(),
-                    ]);
+    assert_eq!(
+        cdb_reader.get("f7396427246008f9d580c9a666000976".as_bytes()),
+        vec![
+            "defton".as_bytes(),
+            "deftones".as_bytes(),
+            "DEFTONES".as_bytes(),
+        ]
+    );
     assert_eq!(cdb_reader.len(), 3000);
 }
 
@@ -132,10 +144,14 @@ fn keys() {
 #[test]
 fn turn_writer_into_reader() {
     let filename = "writer_into_reader.cdb";
-    let items = [("key".as_bytes(),
-                  "this is a value that is sligthly longer that the others".as_bytes()),
-                 ("another key".as_bytes(), "value field".as_bytes()),
-                 ("hi".as_bytes(), "asdf".as_bytes())];
+    let items = [
+        (
+            "key".as_bytes(),
+            "this is a value that is sligthly longer that the others".as_bytes(),
+        ),
+        ("another key".as_bytes(), "value field".as_bytes()),
+        ("hi".as_bytes(), "asdf".as_bytes()),
+    ];
     let path = Path::new(filename);
     {
         let _ = File::create(path);
@@ -159,9 +175,14 @@ fn turn_writer_into_reader() {
 #[test]
 fn turn_reader_into_writer() {
     let filename = "reader_into_writer.cdb";
-    let items = [("key".as_bytes(), "this is a value that is sligthly longer that the others".as_bytes()),
-                 ("another key".as_bytes(), "value field".as_bytes()),
-                 ("hi".as_bytes(), "asdf".as_bytes())];
+    let items = [
+        (
+            "key".as_bytes(),
+            "this is a value that is sligthly longer that the others".as_bytes(),
+        ),
+        ("another key".as_bytes(), "value field".as_bytes()),
+        ("hi".as_bytes(), "asdf".as_bytes()),
+    ];
     let k1 = "key".as_bytes();
     let k2 = "new key".as_bytes();
     let v1 = "different value".as_bytes();

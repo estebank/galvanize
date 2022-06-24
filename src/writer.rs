@@ -4,7 +4,6 @@ use reader::Reader;
 use std::io::{Read, Seek, SeekFrom, Write};
 use types::Result;
 
-
 /// Allows you to create a (or append to) CDB.
 ///
 /// #Example
@@ -91,7 +90,7 @@ impl<'a, F: Write + Read + Seek + 'a> Writer<'a, F> {
         };
         for tbl in &self.index {
             let length = (tbl.len() << 1) as u32;
-            let mut ordered: Vec<(u32, u32)> = vec!((0, 0); length as usize);
+            let mut ordered: Vec<(u32, u32)> = vec![(0, 0); length as usize];
             for &pair in tbl {
                 let where_ = (pair.0 >> 8) % length;
                 for i in (where_..length).chain(0..where_) {
@@ -101,7 +100,10 @@ impl<'a, F: Write + Read + Seek + 'a> Writer<'a, F> {
                     }
                 }
             }
-            index.push((*file.seek(SeekFrom::End(0)).as_mut().unwrap() as u32, length));
+            index.push((
+                *file.seek(SeekFrom::End(0)).as_mut().unwrap() as u32,
+                length,
+            ));
             for pair in ordered {
                 file.write_all(&pack(pair.0)).unwrap();
                 file.write_all(&pack(pair.1)).unwrap();

@@ -7,16 +7,17 @@ extern crate rustc_serialize;
 #[cfg(feature = "cli")]
 mod cli {
     use docopt::Docopt;
-    use galvanize::Reader;
     use galvanize::helpers::vec2str;
+    use galvanize::Reader;
     use std::cmp::min;
-    use std::fs::File;
     use std::env;
+    use std::fs::File;
     use std::process;
 
     const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
 
-    #[derive(Debug, RustcDecodable)] #[allow(non_snake_case)]
+    #[derive(Debug, RustcDecodable)]
+    #[allow(non_snake_case)]
     struct Args {
         arg_FILE: String,
         cmd_get: bool,
@@ -39,9 +40,11 @@ mod cli {
         let bin = match env::current_exe() {
             Ok(bin) => bin.file_name().map(|f| f.to_string_lossy().into_owned()),
             _ => None,
-        }.unwrap_or("cli".to_owned());
+        }
+        .unwrap_or("cli".to_owned());
 
-        let args: Args = Docopt::new(format!("
+        let args: Args = Docopt::new(format!(
+            "
              {0:}
 
              Usage:
@@ -58,9 +61,11 @@ mod cli {
                -h --help      Show this screen.
                --version      Show version.
                -e, --encoded  Treat the key as encoded.
-             ", bin))
-             .and_then(|d| d.decode())
-             .unwrap_or_else(|e| e.exit());
+             ",
+            bin
+        ))
+        .and_then(|d| d.decode())
+        .unwrap_or_else(|e| e.exit());
 
         if args.flag_version {
             println!("galvanize {}", VERSION.unwrap_or("unknown"));
@@ -107,9 +112,11 @@ mod cli {
             }
         } else if args.cmd_count {
             // How many (key, value) are there in this file?
-            println!("There are {} items in the CDB at {:?}",
-                     cdb_reader.len(),
-                     filename);
+            println!(
+                "There are {} items in the CDB at {:?}",
+                cdb_reader.len(),
+                filename
+            );
         } else if args.cmd_get {
             // Get all values under a single key.
             let key = args.arg_key;
