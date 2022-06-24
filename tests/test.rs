@@ -13,12 +13,12 @@ use std::path::Path;
 
 #[test]
 fn known_good_djb_hash() {
-  assert_eq!(hash(&"dave".as_bytes()), 2087378131);
+  assert_eq!(hash("dave".as_bytes()), 2087378131);
 }
 
 #[test]
 fn djb_correct_wrapping() {
-  assert_eq!(hash(&"davedavedavedavedave".as_bytes()), 3529598163);
+  assert_eq!(hash("davedavedavedavedave".as_bytes()), 3529598163);
 }
 
 fn make_writer<'a, F: Write + Read + Seek>(file: &'a mut F, items: &[(&[u8], &[u8])]) -> Writer<'a, F> {
@@ -63,7 +63,7 @@ fn create_file() {
             // Fetch first value for a given key.
             let (k, v) = *item;
             match cdb_reader.get_first(k) {
-                Ok(val) => assert_eq!(&v[..], &val[..]),
+                Ok(val) => assert_eq!(v, &val[..]),
                 Err(e) => panic!("{:?} {:?} {:?}", k, v, e),
             }
         }
@@ -150,7 +150,7 @@ fn turn_writer_into_reader() {
         // Fetch first value for a given key.
         let (k, v) = *item;
         match cdb_reader.get_first(k) {
-            Ok(val) => assert_eq!(&v[..], &val[..]),
+            Ok(val) => assert_eq!(v, &val[..]),
             Err(e) => panic!("{:?} {:?} {:?}", k, v, e),
         }
     }
@@ -183,7 +183,7 @@ fn turn_reader_into_writer() {
             // Fetch first value for a given key.
             let (k, v) = *item;
             match cdb_reader.get_first(k) {
-                Ok(val) => assert_eq!(&v[..], &val[..]),
+                Ok(val) => assert_eq!(v, &val[..]),
                 Err(e) => panic!("{:?} {:?} {:?}", k, v, e),
             }
         }
@@ -204,11 +204,11 @@ fn turn_reader_into_writer() {
             // Fetch first value for a given key.
             let (k, v) = *item;
             match cdb_reader.get_first(k) {
-                Ok(val) => assert_eq!(&v[..], &val[..]),
+                Ok(val) => assert_eq!(v, &val[..]),
                 Err(e) => panic!("{:?} {:?} {:?}", k, v, e),
             }
         }
-        assert_eq!(&v1[..], &cdb_reader.get_from_pos(k1, 1).unwrap()[..]);
-        assert_eq!(&v2[..], &cdb_reader.get_from_pos(k2, 0).unwrap()[..]);
+        assert_eq!(v1, &cdb_reader.get_from_pos(k1, 1).unwrap()[..]);
+        assert_eq!(v2, &cdb_reader.get_from_pos(k2, 0).unwrap()[..]);
     }
 }

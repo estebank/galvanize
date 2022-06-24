@@ -50,7 +50,7 @@ impl<'a, F: Write + Read + Seek + 'a> Writer<'a, F> {
     /// The `file` must allow writes to be performed.
     pub fn new(file: &'a mut F) -> Result<Writer<'a, F>> {
         file.seek(SeekFrom::Start(0))?;
-        file.write(&[0; 2048])?;
+        file.write_all(&[0; 2048])?;
 
         Self::new_with_index(file, vec![Vec::new(); 256])
     }
@@ -60,7 +60,7 @@ impl<'a, F: Write + Read + Seek + 'a> Writer<'a, F> {
     pub fn new_with_index(file: &'a mut F, index: Vec<Vec<(u32, u32)>>) -> Result<Writer<'a, F>> {
         Ok(Writer {
             file: Some(file),
-            index: index,
+            index,
         })
     }
 
@@ -68,13 +68,13 @@ impl<'a, F: Write + Read + Seek + 'a> Writer<'a, F> {
     pub fn put(&mut self, key: &[u8], value: &[u8]) -> Result<()> {
         let file = self.file.as_mut().unwrap();
         let pos = file.seek(SeekFrom::Current(0))? as u32;
-        file.write(&pack(key.len() as u32))?;
-        file.write(&pack(value.len() as u32))?;
+        file.write_all(&pack(key.len() as u32))?;
+        file.write_all(&pack(value.len() as u32))?;
 
-        file.write(key)?;
-        file.write(value)?;
+        file.write_all(key)?;
+        file.write_all(value)?;
 
-        let h = hash(key) & 0xffffffff;
+        let h = hash(key);
         self.index[(h & 0xff) as usize].push((h, pos));
         Ok(())
     }
@@ -103,15 +103,15 @@ impl<'a, F: Write + Read + Seek + 'a> Writer<'a, F> {
             }
             index.push((*file.seek(SeekFrom::End(0)).as_mut().unwrap() as u32, length));
             for pair in ordered {
-                file.write(&pack(pair.0)).unwrap();
-                file.write(&pack(pair.1)).unwrap();
+                file.write_all(&pack(pair.0)).unwrap();
+                file.write_all(&pack(pair.1)).unwrap();
             }
         }
 
         file.seek(SeekFrom::Start(0)).unwrap();
         for pair in index {
-            file.write(&pack(pair.0)).unwrap();
-            file.write(&pack(pair.1)).unwrap();
+            file.write_all(&pack(pair.0)).unwrap();
+            file.write_all(&pack(pair.1)).unwrap();
         }
     }
 

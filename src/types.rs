@@ -34,6 +34,7 @@ impl fmt::Display for Error {
 }
 
 impl error::Error for Error {
+    #[allow(deprecated)]
     fn description(&self) -> &str {
         match *self {
             Error::CDBTooSmall => "The file is too small to be a valid CDB",
@@ -44,7 +45,7 @@ impl error::Error for Error {
         }
     }
 
-    fn cause(&self) -> Option<&error::Error> {
+    fn cause(&self) -> Option<&dyn error::Error> {
         match *self {
             Error::CDBTooSmall => None,
             Error::KeyNotInCDB => None,

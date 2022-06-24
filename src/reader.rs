@@ -193,14 +193,14 @@ impl<'a, F: Read + Seek + 'a> Reader<'a, F> {
             let i = ix * 8;
             let k = unpack([buf[i], buf[i + 1], buf[i + 2], buf[i + 3]]);
             let v = unpack([buf[i + 4], buf[i + 5], buf[i + 6], buf[i + 7]]);
-            sum = sum + (v >> 1);
+            sum += v >> 1;
             index.push((k, v));
         }
         let table_start = index.iter().map(|item| item.0).min().unwrap();
 
         Ok(Reader {
-            file: file,
-            index: index,
+            file,
+            index,
             table_start: table_start as usize,
             length: sum as usize,
         })
@@ -211,15 +211,16 @@ impl<'a, F: Read + Seek + 'a> Reader<'a, F> {
         self.length
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Return a `Vec` of all the values under the given `key`.
     pub fn get(&mut self, key: &[u8]) -> Vec<Vec<u8>> {
         let mut i = 0;
         let mut values: Vec<Vec<u8>> = vec![];
-        loop {
-            match self.get_from_pos(key, i) {
-                Ok(v) => values.push(v),
-                Err(_) => break,
-            }
+        while let Ok(v) = self.get_from_pos(key, i) {
+            values.push(v);
             i += 1;
         }
         values
@@ -246,8 +247,7 @@ impl<'a, F: Read + Seek + 'a> Reader<'a, F> {
     /// Pull the `value` bytes for the `index`st occurence of the given `key`
     /// in this CDB.
     pub fn get_from_pos(&mut self, key: &[u8], index: u32) -> Result<Vec<u8>> {
-        // Truncate to 32 bits and remove sign.
-        let h = hash(key) & 0xffffffff;
+        let h = hash(key);
         let (start, nslots) = self.index[(h & 0xff) as usize];
 
         if nslots > index {
@@ -267,7 +267,7 @@ impl<'a, F: Read + Seek + 'a> Reader<'a, F> {
                 {
                     self.file.seek(SeekFrom::Start(pos as u64))?;
                     let mut chunk = self.file.take(8);
-                    chunk.read(&mut buf)?;
+                    chunk.read_exact(&mut buf)?;
                 }
                 let rec_h = unpack([buf[0], buf[1], buf[2], buf[3]]);
                 let rec_pos = unpack([buf[4], buf[5], buf[6], buf[7]]);
@@ -280,7 +280,7 @@ impl<'a, F: Read + Seek + 'a> Reader<'a, F> {
                     {
                         self.file.seek(SeekFrom::Start(rec_pos as u64))?;
                         let mut chunk = self.file.take(8);
-                        chunk.read(&mut buf)?;
+                        chunk.read_exact(&mut buf)?;
                     }
                     let klen = unpack([buf[0], buf[1], buf[2], buf[3]]);
                     let dlen = unpack([buf[4], buf[5], buf[6], buf[7]]);
@@ -301,7 +301,7 @@ impl<'a, F: Read + Seek + 'a> Reader<'a, F> {
                             if counter == index {
                                 return Ok(buf);
                             }
-                            counter = counter + 1;
+                            counter += 1;
                         }
                     }
                 }
@@ -318,12 +318,12 @@ impl<'a> Reader<'a, File> {
     ///
     /// The underlying file will have its hash table `truncate`d. This will be
     /// regenerated on `Writer` drop.
-    pub fn as_writer(mut self) -> Result<Writer<'a, File>> {
+    pub fn as_writer(self) -> Result<Writer<'a, File>> {
         match self.file.seek(SeekFrom::Start(self.table_start as u64)) {
             Ok(_) => {
                 let mut index: Vec<Vec<(u32, u32)>> = vec![Vec::new(); 256];
 
-                let mut buf = &mut [0 as u8; 8];
+                let buf = &mut [0_u8; 8];
                 // Read hash table until end of file to recreate Writer index.
                 while let Ok(s) = self.file.read(buf) {
                     if s == 0 {

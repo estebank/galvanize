@@ -11,6 +11,7 @@ pub fn hash(string: &[u8]) -> u32 {
     let mut h: Wrapping<u32> = Wrapping(5381);
     for c in string.iter() {
         let x: Wrapping<u32> = Wrapping(c.to_owned() as u32);
+        // Truncate to 32 bits and remove sign.
         h = (((h << 5) + h) ^ x) & Wrapping(0xffffffff);
     }
     h.0
@@ -25,13 +26,13 @@ pub fn pack(v: u32) -> [u8; 4] {
 /// Get an `u32` from an array of 4 bytes.
 #[inline]
 pub fn unpack(v: [u8; 4]) -> u32 {
-    ((v[0] as u32) | ((v[1] as u32) << 8) | ((v[2] as u32) << 16) | ((v[3] as u32) << 24))
+    (v[0] as u32) | ((v[1] as u32) << 8) | ((v[2] as u32) << 16) | ((v[3] as u32) << 24)
 }
 
 /// Represent an iterable of bytes as "lossy" `utf8` `String`.
 ///
 /// If the byte cannot be represented as an `utf8` character, it'll be replaced
 /// with a `?`.
-pub fn vec2str<'a>(v: &'a [u8]) -> String {
-    String::from_utf8_lossy(&v[..]).into_owned()
+pub fn vec2str(v: &[u8]) -> String {
+    String::from_utf8_lossy(v).into_owned()
 }
