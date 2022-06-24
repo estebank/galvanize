@@ -39,7 +39,7 @@ use types::Result;
 /// ```
 pub struct Writer<'a, F: Write + Read + Seek + 'a> {
     /// Opened file to write values into.
-    file: &'a mut F,
+    file: Option<&'a mut F>,
     /// Working hash table for the contents of the CDB.
     index: Vec<Vec<(u32, u32)>>,
 }
@@ -59,19 +59,20 @@ impl<'a, F: Write + Read + Seek + 'a> Writer<'a, F> {
     /// underlying `file`.
     pub fn new_with_index(file: &'a mut F, index: Vec<Vec<(u32, u32)>>) -> Result<Writer<'a, F>> {
         Ok(Writer {
-            file: file,
+            file: Some(file),
             index: index,
         })
     }
 
     /// Write `value` for `key` into this CDB.
     pub fn put(&mut self, key: &[u8], value: &[u8]) -> Result<()> {
-        let pos = self.file.seek(SeekFrom::Current(0))? as u32;
-        self.file.write(&pack(key.len() as u32))?;
-        self.file.write(&pack(value.len() as u32))?;
+        let file = self.file.as_mut().unwrap();
+        let pos = file.seek(SeekFrom::Current(0))? as u32;
+        file.write(&pack(key.len() as u32))?;
+        file.write(&pack(value.len() as u32))?;
 
-        self.file.write(key)?;
-        self.file.write(value)?;
+        file.write(key)?;
+        file.write(value)?;
 
         let h = hash(key) & 0xffffffff;
         self.index[(h & 0xff) as usize].push((h, pos));
@@ -82,7 +83,12 @@ impl<'a, F: Write + Read + Seek + 'a> Writer<'a, F> {
     fn finalize(&mut self) {
         let mut index: Vec<(u32, u32)> = Vec::new();
 
-        &self.file.seek(SeekFrom::End(0));
+        let file = if let Some(file) = self.file.as_mut() {
+            file.seek(SeekFrom::End(0)).unwrap();
+            file
+        } else {
+            return;
+        };
         for tbl in &self.index {
             let length = (tbl.len() << 1) as u32;
             let mut ordered: Vec<(u32, u32)> = vec!((0, 0); length as usize);
@@ -95,17 +101,17 @@ impl<'a, F: Write + Read + Seek + 'a> Writer<'a, F> {
                     }
                 }
             }
-            index.push((self.file.seek(SeekFrom::End(0)).unwrap() as u32, length));
+            index.push((*file.seek(SeekFrom::End(0)).as_mut().unwrap() as u32, length));
             for pair in ordered {
-                &self.file.write(&pack(pair.0));
-                &self.file.write(&pack(pair.1));
+                file.write(&pack(pair.0)).unwrap();
+                file.write(&pack(pair.1)).unwrap();
             }
         }
 
-        &self.file.seek(SeekFrom::Start(0));
+        file.seek(SeekFrom::Start(0)).unwrap();
         for pair in index {
-            &self.file.write(&pack(pair.0));
-            &self.file.write(&pack(pair.1));
+            file.write(&pack(pair.0)).unwrap();
+            file.write(&pack(pair.1)).unwrap();
         }
     }
 
@@ -118,7 +124,8 @@ impl<'a, F: Write + Read + Seek + 'a> Writer<'a, F> {
             let s = &mut self;
             s.finalize();
         }
-        Reader::new(self.file)
+        let file = self.file.take().unwrap();
+        Reader::new(file)
     }
 }
 
