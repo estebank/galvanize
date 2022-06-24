@@ -1,6 +1,6 @@
 [package]
 name = "galvanize"
-version = "0.0.2"
+version = "0.1.0"
 authors = ["Esteban Küber <esteban@kuber.com.ar>"]
 description = "Pure Rust CDB library."
 repository = "https://github.com/estebank/galvanize"
@@ -16,6 +16,7 @@ name = "galvanize"
 path = "src/lib.rs"
 
 [features]
+#cli = ["docopt"]
 cli = ["docopt", "rustc-serialize"]
 
 [dependencies]

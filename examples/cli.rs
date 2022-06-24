@@ -22,13 +22,11 @@ mod cli {
         arg_FILE: String,
         cmd_get: bool,
         arg_key: String,
-        flag_encoded: bool,
         cmd_top: bool,
         cmd_tail: bool,
         arg_COUNT: u32,
         cmd_count: bool,
         cmd_all: bool,
-        flag_yes_i_am_sure: bool,
         flag_version: bool,
     }
 
@@ -41,7 +39,7 @@ mod cli {
             Ok(bin) => bin.file_name().map(|f| f.to_string_lossy().into_owned()),
             _ => None,
         }
-        .unwrap_or("cli".to_owned());
+        .unwrap_or_else(|| "cli".to_owned());
 
         let args: Args = Docopt::new(format!(
             "
@@ -121,7 +119,7 @@ mod cli {
             // Get all values under a single key.
             let key = args.arg_key;
             let values = cdb_reader.get(&key.clone().into_bytes());
-            if values.len() == 0 {
+            if values.is_empty() {
                 println!("There're no values under {:?}", key);
             } else if values.len() == 1 {
                 println!("{:?}: {:?}", key, vec2str(&values[0]));
@@ -137,7 +135,6 @@ mod cli {
 
 #[cfg(feature = "cli")]
 fn main() {
-    use cli;
     cli::main();
 }
 
