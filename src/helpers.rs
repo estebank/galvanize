@@ -16,18 +16,6 @@ pub fn hash(string: &[u8]) -> u32 {
     h.0
 }
 
-/// Get array of bytes from an `u32`.
-#[inline]
-pub fn pack(v: u32) -> [u8; 4] {
-    [v as u8, (v >> 8) as u8, (v >> 16) as u8, (v >> 24) as u8]
-}
-
-/// Get an `u32` from an array of 4 bytes.
-#[inline]
-pub fn unpack(v: [u8; 4]) -> u32 {
-    (v[0] as u32) | ((v[1] as u32) << 8) | ((v[2] as u32) << 16) | ((v[3] as u32) << 24)
-}
-
 /// Represent an iterable of bytes as "lossy" `utf8` `String`.
 ///
 /// If the byte cannot be represented as an `utf8` character, it'll be replaced
