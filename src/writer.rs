@@ -1,5 +1,5 @@
 //! This module allows you to write to a CDB.
-use helpers::{hash, pack};
+use helpers::hash;
 use reader::Reader;
 use std::io::{Read, Seek, SeekFrom, Write};
 use types::Result;
@@ -67,8 +67,8 @@ impl<'a, F: Write + Read + Seek + 'a> Writer<'a, F> {
     pub fn put(&mut self, key: &[u8], value: &[u8]) -> Result<()> {
         let file = self.file.as_mut().unwrap();
         let pos = file.seek(SeekFrom::Current(0))? as u32;
-        file.write_all(&pack(key.len() as u32))?;
-        file.write_all(&pack(value.len() as u32))?;
+        file.write_all(&(key.len() as u32).to_le_bytes())?;
+        file.write_all(&(value.len() as u32).to_le_bytes())?;
 
         file.write_all(key)?;
         file.write_all(value)?;
@@ -105,15 +105,15 @@ impl<'a, F: Write + Read + Seek + 'a> Writer<'a, F> {
                 length,
             ));
             for pair in ordered {
-                file.write_all(&pack(pair.0)).unwrap();
-                file.write_all(&pack(pair.1)).unwrap();
+                file.write_all(&(pair.0).to_le_bytes()).unwrap();
+                file.write_all(&(pair.1).to_le_bytes()).unwrap();
             }
         }
 
         file.seek(SeekFrom::Start(0)).unwrap();
         for pair in index {
-            file.write_all(&pack(pair.0)).unwrap();
-            file.write_all(&pack(pair.1)).unwrap();
+            file.write_all(&(pair.0).to_le_bytes()).unwrap();
+            file.write_all(&(pair.1).to_le_bytes()).unwrap();
         }
     }
 

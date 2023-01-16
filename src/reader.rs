@@ -1,5 +1,5 @@
 //! This module allows you to read from a CDB.
-use helpers::{hash, unpack};
+use helpers::hash;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use types::{Error, Result};
@@ -96,8 +96,8 @@ impl<'a, 'file: 'a, F: Read + Seek + 'file> Iterator for ItemIterator<'a, 'file,
             let mut chunk = self.reader.file.take(8);
             let _ = chunk.read(&mut buf);
         }
-        let k = unpack([buf[0], buf[1], buf[2], buf[3]]); // Key length
-        let v = unpack([buf[4], buf[5], buf[6], buf[7]]); // Value length
+        let k = u32::from_le_bytes([buf[0], buf[1], buf[2], buf[3]]); // Key length
+        let v = u32::from_le_bytes([buf[4], buf[5], buf[6], buf[7]]); // Value length
 
         let mut key: Vec<u8> = vec![];
         {
@@ -189,8 +189,8 @@ impl<'a, F: Read + Seek + 'a> Reader<'a, F> {
 
         for ix in 0..2048 / 8 {
             let i = ix * 8;
-            let k = unpack([buf[i], buf[i + 1], buf[i + 2], buf[i + 3]]);
-            let v = unpack([buf[i + 4], buf[i + 5], buf[i + 6], buf[i + 7]]);
+            let k = u32::from_le_bytes([buf[i], buf[i + 1], buf[i + 2], buf[i + 3]]);
+            let v = u32::from_le_bytes([buf[i + 4], buf[i + 5], buf[i + 6], buf[i + 7]]);
             sum += v >> 1;
             index.push((k, v));
         }
@@ -268,8 +268,8 @@ impl<'a, F: Read + Seek + 'a> Reader<'a, F> {
                     let mut chunk = self.file.take(8);
                     chunk.read_exact(&mut buf)?;
                 }
-                let rec_h = unpack([buf[0], buf[1], buf[2], buf[3]]);
-                let rec_pos = unpack([buf[4], buf[5], buf[6], buf[7]]);
+                let rec_h = u32::from_le_bytes([buf[0], buf[1], buf[2], buf[3]]);
+                let rec_pos = u32::from_le_bytes([buf[4], buf[5], buf[6], buf[7]]);
 
                 if rec_h == 0 {
                     // Key not in file.
@@ -281,8 +281,8 @@ impl<'a, F: Read + Seek + 'a> Reader<'a, F> {
                         let mut chunk = self.file.take(8);
                         chunk.read_exact(&mut buf)?;
                     }
-                    let klen = unpack([buf[0], buf[1], buf[2], buf[3]]);
-                    let dlen = unpack([buf[4], buf[5], buf[6], buf[7]]);
+                    let klen = u32::from_le_bytes([buf[0], buf[1], buf[2], buf[3]]);
+                    let dlen = u32::from_le_bytes([buf[4], buf[5], buf[6], buf[7]]);
 
                     let mut buf: Vec<u8> = vec![];
                     {
@@ -329,8 +329,8 @@ impl<'a> Reader<'a, File> {
                         // EOF
                         break;
                     }
-                    let h = unpack([buf[0], buf[1], buf[2], buf[3]]);
-                    let pos = unpack([buf[4], buf[5], buf[6], buf[7]]);
+                    let h = u32::from_le_bytes([buf[0], buf[1], buf[2], buf[3]]);
+                    let pos = u32::from_le_bytes([buf[4], buf[5], buf[6], buf[7]]);
                     index[(h & 0xff) as usize].push((h, pos));
                 }
 
